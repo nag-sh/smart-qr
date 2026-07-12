@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Enforce PR workflow: never push directly to main.
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    echo "⛔ Direct pushes to 'main' are blocked by policy."
+    echo "   Push a feature branch and open a PR instead."
+    exit 1
+  fi
+done
