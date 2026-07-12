@@ -1,0 +1,179 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #030712; /* slate-950 */
+    color: #f8fafc; /* slate-50 */
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Smooth custom glassmorphism styles */
+.glass-panel {
+  background: rgba(17, 24, 39, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-panel-modal {
+  background: rgba(17, 24, 39, 0.35);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.glass-card {
+  background: rgba(31, 41, 55, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card:hover {
+  background: rgba(31, 41, 55, 0.65);
+  border-color: rgba(168, 85, 247, 0.3); /* purple-500 */
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px -10px rgba(168, 85, 247, 0.2);
+}
+
+.glass-input {
+  background: rgba(17, 24, 39, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+  transition: all 0.2s ease-in-out;
+}
+
+.glass-input:focus {
+  outline: none;
+  border-color: rgba(168, 85, 247, 0.5);
+  background: rgba(17, 24, 39, 0.85);
+  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.25);
+}
+
+/* Custom premium gradients */
+.text-gradient {
+  background: linear-gradient(135deg, #c084fc 0%, #e879f9 50%, #f472b6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.bg-gradient-premium {
+  background: linear-gradient(135deg, rgba(88, 28, 135, 0.15) 0%, rgba(131, 24, 67, 0.15) 100%);
+}
+
+/* Pulsing QR Target Overlay Animation */
+@keyframes qr-scan-pulse {
+  0%, 100% {
+    border-color: rgba(168, 85, 247, 0.4);
+    box-shadow: 0 0 8px rgba(168, 85, 247, 0.2);
+  }
+  50% {
+    border-color: rgba(236, 72, 153, 0.8);
+    box-shadow: 0 0 20px rgba(236, 72, 153, 0.5);
+  }
+}
+
+.animate-qr-pulse {
+  animation: qr-scan-pulse 2s infinite ease-in-out;
+}
+
+/* Scanning Line Animation */
+@keyframes scan-line-move {
+  0% {
+    top: 0%;
+  }
+  50% {
+    top: 100%;
+  }
+  100% {
+    top: 0%;
+  }
+}
+
+.animate-scan-line {
+  animation: scan-line-move 3s infinite linear;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(3, 7, 18, 0.9);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(168, 85, 247, 0.3);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(168, 85, 247, 0.5);
+}
+
+/* Print styles for 8.5x11 Landscape Labels */
+@media print {
+  @page {
+    size: letter landscape;
+    margin: 0;
+  }
+  
+  html, body, #root, #root > div {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* Hide screen views and bottom navigation bar */
+  main, .no-print {
+    display: none !important;
+  }
+
+  .print-label-only {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 11in !important;
+    height: 8.5in !important;
+    box-sizing: border-box !important;
+    padding: 0.6in !important;
+    margin: 0 !important;
+    page-break-inside: avoid !important;
+    page-break-after: avoid !important;
+    page-break-before: avoid !important;
+  }
+
+  .print-qr-code {
+    width: 3.5in !important;
+    height: 3.5in !important;
+    margin-bottom: 0.6in !important;
+    display: block !important;
+  }
+
+  .print-bin-name {
+    font-size: 56pt !important;
+    font-weight: 900 !important;
+    font-family: 'Outfit', sans-serif !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.03em !important;
+    line-height: 1.05 !important;
+    text-align: center !important;
+  }
+}

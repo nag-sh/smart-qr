@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# OpenCode / agent artifacts
+.omo/
+.playwright-mcp/
+
+# Runtime data (generated at runtime, never committed)
+server/uploads/
+server/inventory.db
+server/inventory.db-shm
+server/inventory.db-wal
+
+# Screenshots / working artifacts at repo root only
+/*.png
+/*.jpg
+/*.jpeg
+GEMINI_CHAT_HISTORY.md
+
+# Scratch / debug scripts
+client/scratch/
+
+# Coverage
+coverage/

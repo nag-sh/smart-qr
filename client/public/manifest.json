@@ -1,0 +1,18 @@
+{
+  "short_name": "QRInventory",
+  "name": "Smart QR Inventory PWA",
+  "description": "Smart QR Inventory manager using Gemini AI",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#030712",
+  "theme_color": "#030712",
+  "display": "standalone",
+  "orientation": "portrait",
+  "categories": ["utilities", "productivity"]
+}

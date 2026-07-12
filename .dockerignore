@@ -1,0 +1,12 @@
+**/node_modules
+server/uploads
+server/inventory.db
+server/inventory.db-shm
+server/inventory.db-wal
+.omo
+.playwright-mcp
+.git
+**/coverage
+/*.png
+/*.jpg
+GEMINI_CHAT_HISTORY.md
