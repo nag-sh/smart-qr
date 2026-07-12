@@ -1,0 +1,14 @@
+{
+  "name": "smart-qr",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Smart QR Inventory — monorepo root (React PWA client + Express/SQLite server)",
+  "scripts": {
+    "prepare": "husky",
+    "test": "npm --prefix client test && npm --prefix server test",
+    "lint": "npm --prefix client run lint"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7"
+  }
+}

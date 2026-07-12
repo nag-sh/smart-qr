@@ -94,7 +94,19 @@ Mount a volume at `/app/uploads` and persist `inventory.db` for durable data.
 
 ## Contributing
 
-This repository enforces **branch protection on `main`**: all changes must go
-through a pull request — direct pushes to `main` are blocked. Fork/branch,
-open a PR, and let CI (client lint + tests + build, server tests, and a Docker
-build check) validate it before merge.
+This repository requires **all changes to go through a pull request** — direct
+commits and pushes to `main` are blocked. Because GitHub branch protection is
+unavailable on a Free private repository, this is enforced client-side with
+[husky](https://typicode.github.io/husky/) git hooks (installed automatically
+on `npm install` via the root `prepare` script):
+
+- `.husky/pre-commit` — refuses to commit while on `main`
+- `.husky/pre-push` — refuses to push directly to `main`
+
+Workflow: create a feature branch, commit, push the branch, and open a PR.
+CI (client lint + tests + build, server tests, and a Docker build check)
+validates every PR before merge.
+
+> Note: the hooks run as part of `git`, so they can be bypassed with
+> `--no-verify`. For a hard server-side block, upgrade the `nag-sh` org to
+> GitHub Team/Pro (which enables required-PR branch protection on private repos).
