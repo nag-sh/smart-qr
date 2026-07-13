@@ -266,7 +266,7 @@ export default function Scanner({ onNavigate, onBack }) {
         </button>
       </div>
 
-      <div className="relative bg-slate-950 aspect-square flex items-center justify-center overflow-hidden">
+      <div className="relative bg-slate-950 aspect-square flex items-center justify-center overflow-hidden rounded-3xl">
         {manualMode ? (
           <form onSubmit={handleManualSubmit} className="w-full px-6 py-8 space-y-4 max-w-xs text-center z-10">
             <div className="p-3 bg-purple-500/10 rounded-2xl text-purple-400 w-fit mx-auto mb-2">
@@ -307,13 +307,25 @@ export default function Scanner({ onNavigate, onBack }) {
 
             {isScanning && (
               <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute top-0 left-0 right-0 h-[17.5%] bg-slate-950"></div>
-                <div className="absolute bottom-0 left-0 right-0 h-[17.5%] bg-slate-950"></div>
-                <div className="absolute top-[17.5%] bottom-[17.5%] left-0 w-[17.5%] bg-slate-950"></div>
-                <div className="absolute top-[17.5%] bottom-[17.5%] right-0 w-[17.5%] bg-slate-950"></div>
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    background: 'rgba(2,6,23,0.3)',
+                    WebkitMaskImage:
+                      'url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIj48cGF0aCBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGZpbGw9IiMwMDAiIGQ9Ik03IDAgSDkzIEE3IDcgMCAwIDEgMTAwIDcgVjkzIEE3IDcgMCAwIDEgOTMgMTAwIEg3IEE3IDcgMCAwIDEgMCA5MyBWNyBBNyA3IDAgMCAxIDcgMCBaIE0xNSAxMCBIODUgQTUgNSAwIDAgMSA5MCAxNSBWODUgQTUgNSAwIDAgMSA4NSA5MCBIMTUgQTUgNSAwIDAgMSAxMCA4NSBWMTUgQTUgNSAwIDAgMSAxNSAxMCBaIi8+PC9zdmc+")',
+                    maskImage:
+                      'url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIj48cGF0aCBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGZpbGw9IiMwMDAiIGQ9Ik03IDAgSDkzIEE3IDcgMCAwIDEgMTAwIDcgVjkzIEE3IDcgMCAwIDEgOTMgMTAwIEg3IEE3IDcgMCAwIDEgMCA5MyBWNyBBNyA3IDAgMCAxIDcgMCBaIE0xNSAxMCBIODUgQTUgNSAwIDAgMSA5MCAxNSBWODUgQTUgNSAwIDAgMSA4NSA5MCBIMTUgQTUgNSAwIDAgMSAxMCA4NSBWMTUgQTUgNSAwIDAgMSAxNSAxMCBaIi8+PC9zdmc+")',
+                    WebkitMaskSize: '100% 100%',
+                    maskSize: '100% 100%',
+                    WebkitMaskRepeat: 'no-repeat',
+                    maskRepeat: 'no-repeat',
+                  }}
+                />
 
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="relative w-[65%] aspect-square border-2 border-purple-500/60 rounded-2xl animate-qr-pulse">
+                  <div className="relative w-[80%] aspect-square border-2 border-purple-500/60 rounded-2xl animate-qr-pulse">
                     <div className="absolute -top-[3px] -left-[3px] w-6 h-6 border-t-4 border-l-4 border-purple-500 rounded-tl-xl"></div>
                     <div className="absolute -top-[3px] -right-[3px] w-6 h-6 border-t-4 border-r-4 border-purple-500 rounded-tr-xl"></div>
                     <div className="absolute -bottom-[3px] -left-[3px] w-6 h-6 border-b-4 border-l-4 border-purple-500 rounded-bl-xl"></div>

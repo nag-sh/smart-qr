@@ -16,6 +16,7 @@ export const MODAL_PARAM_KEYS = {
   'restore-cherry': [],
   'restore-details': [],
   'restore-multi': [],
+  'print-randomized': [],
 };
 
 export function parseModalStack(searchParams) {
