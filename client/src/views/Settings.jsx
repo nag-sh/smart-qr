@@ -6,8 +6,13 @@ import {
 } from 'lucide-react';
 import { 
   getStorageMode, setStorageMode as persistStorageMode, 
-  getLocalExportData, restoreLocalData
+  getLocalExportData, restoreLocalData,
+  localRecordsForSync, localRecordsFromSync
 } from '../services/storage';
+import {
+  slugify, planImagePath, getImageBlob, storeImage, isImageRef, EXT_FROM_TYPE
+} from '../services/localImages';
+import JSZip from 'jszip';
 
 export default function Settings({ onNavigate, onBack, modalTypes }) {
   const [apiKey, setApiKey] = useState('');
@@ -58,25 +63,25 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
       const data = await response.json();
       if (!data.success) throw new Error(data.message);
 
+      const converted = await localRecordsFromSync(data.bins, data.items);
+
       const localBins = getLocalExportData().bins;
       const localItems = getLocalExportData().items;
-      const localBinIds = new Set(localBins.map(b => b.id));
-      const localItemIds = new Set(localItems.map(i => i.id));
 
       // Merge: server records win on conflict (same id), append new ones
       const mergedBins = [
-        ...data.bins,
-        ...localBins.filter(b => !data.bins.some(sb => sb.id === b.id))
+        ...converted.bins,
+        ...localBins.filter(b => !converted.bins.some(sb => sb.id === b.id))
       ];
       const mergedItems = [
-        ...data.items,
-        ...localItems.filter(i => !data.items.some(si => si.id === i.id))
+        ...converted.items,
+        ...localItems.filter(i => !converted.items.some(si => si.id === i.id))
       ];
 
-      const finalBins = deleteUnreferenced ? data.bins : mergedBins;
-      const finalItems = deleteUnreferenced ? data.items : mergedItems;
+      const finalBins = deleteUnreferenced ? converted.bins : mergedBins;
+      const finalItems = deleteUnreferenced ? converted.items : mergedItems;
 
-      restoreLocalData({ bins: finalBins, items: finalItems });
+      await restoreLocalData({ bins: finalBins, items: finalItems });
       setSyncSuccess(`Pulled ${data.bins.length} bins and ${data.items.length} items from server.`);
     } catch (err) {
       console.error(err);
@@ -92,10 +97,11 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
     setSyncLoading(true);
     try {
       const { bins, items } = getLocalExportData();
+      const syncData = await localRecordsForSync(bins, items);
       const response = await fetch('/api/sync/push', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bins, items, deleteUnreferenced })
+        body: JSON.stringify({ bins: syncData.bins, items: syncData.items, deleteUnreferenced })
       });
       const data = await response.json();
       if (!data.success) throw new Error(data.message);
@@ -237,16 +243,65 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
     }
   };
 
-  // Client-side JSON file export trigger for Local mode
-  const handleLocalExport = (e) => {
+  const handleLocalExport = async (e) => {
     e.preventDefault();
     try {
-      const data = getLocalExportData();
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
+      const { bins, items } = getLocalExportData();
+      const zip = new JSZip();
+      const usedSet = new Set();
+      const binMap = new Map(bins.map(b => [b.id, b]));
+
+      const rewrittenBins = [];
+      for (const bin of bins) {
+        let image_url = bin.image_url;
+        if (isImageRef(image_url)) {
+          const blob = await getImageBlob(image_url);
+          if (blob) {
+            const locSlug = slugify(bin.location, 'unsorted-location');
+            const binSlug = slugify(bin.name, bin.id);
+            const ext = EXT_FROM_TYPE[blob.type] || 'bin';
+            const base = `images/${locSlug}/${binSlug}/bin.${ext}`;
+            const path = planImagePath(base, usedSet);
+            zip.file(path, blob);
+            image_url = path;
+          }
+        }
+        rewrittenBins.push({ ...bin, image_url });
+      }
+
+      const rewrittenItems = [];
+      for (const item of items) {
+        let image_url = item.image_url;
+        if (isImageRef(image_url)) {
+          const blob = await getImageBlob(image_url);
+          if (blob) {
+            const bin = binMap.get(item.bin_id);
+            const locSlug = slugify(bin?.location, 'unsorted-location');
+            const binSlug = slugify(bin?.name, bin?.id ?? 'unknown-bin');
+            const itemSlug = slugify(item.name, item.id);
+            const ext = EXT_FROM_TYPE[blob.type] || 'bin';
+            const base = `images/${locSlug}/${binSlug}/${itemSlug}.${ext}`;
+            const path = planImagePath(base, usedSet);
+            zip.file(path, blob);
+            image_url = path;
+          }
+        }
+        rewrittenItems.push({ ...item, image_url });
+      }
+
+      zip.file('inventory.json', JSON.stringify({
+        exported_at: new Date().toISOString(),
+        owner: 'dion',
+        image_layout: 'images/<location>/<bin>/<item>.*',
+        bins: rewrittenBins,
+        items: rewrittenItems
+      }, null, 2));
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(zipBlob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `smart_inventory_backup_${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `smart_inventory_backup_${new Date().toISOString().slice(0, 10)}.zip`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -271,7 +326,34 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
 
       if (fileName.endsWith('.zip')) {
         if (storageMode === 'local') {
-          throw new Error('Zip archives (.zip) are not supported in Offline Local Browser mode. Switch to Server mode to restore zip backups.');
+          const arrayBuffer = await file.arrayBuffer();
+          const zip = await JSZip.loadAsync(arrayBuffer);
+          const inventoryFile = zip.file('inventory.json');
+          if (!inventoryFile) {
+            throw new Error('Invalid zip archive: missing inventory.json');
+          }
+          const parsed = JSON.parse(await inventoryFile.async('string'));
+          if (!parsed.bins || !parsed.items) {
+            throw new Error('Invalid inventory.json format');
+          }
+
+          const convertImageUrl = async (record) => {
+            if (typeof record.image_url !== 'string' || !record.image_url.startsWith('images/')) {
+              return record;
+            }
+            const imageEntry = zip.file(record.image_url);
+            if (!imageEntry) return { ...record, image_url: null };
+            const blob = await imageEntry.async('blob');
+            const ref = await storeImage(blob);
+            return { ...record, image_url: ref };
+          };
+
+          const bins = await Promise.all(parsed.bins.map(convertImageUrl));
+          const items = await Promise.all(parsed.items.map(convertImageUrl));
+          await restoreLocalData({ bins, items });
+          setImportSuccess('Offline local backup restored successfully! Reloading...');
+          setTimeout(() => window.location.reload(), 1500);
+          return;
         }
 
         const formData = new FormData();
@@ -310,12 +392,11 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
 
       } else if (fileName.endsWith('.json')) {
         if (storageMode === 'local') {
-          // Read local JSON file client-side
           const reader = new FileReader();
-          reader.onload = (event) => {
+          reader.onload = async (event) => {
             try {
               const parsed = JSON.parse(event.target.result);
-              restoreLocalData(parsed);
+              await restoreLocalData(parsed);
               setImportSuccess('Offline local backup restored successfully! Reloading...');
               setTimeout(() => window.location.reload(), 1500);
             } catch (err) {
@@ -666,7 +747,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
                       <FileJson className="w-4 h-4" />
                     </div>
                     <div>
-                      <span className="block text-xs font-bold text-slate-200 group-hover:text-pink-300">JSON Export</span>
+                      <span className="block text-xs font-bold text-slate-200 group-hover:text-pink-300">ZIP Export</span>
                       <span className="block text-[9px] text-slate-500">Local browser export</span>
                     </div>
                   </div>

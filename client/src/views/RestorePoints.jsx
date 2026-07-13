@@ -6,6 +6,12 @@ import {
 import {
   getAuditLog, restoreAuditEntry, cherryPickAuditEntry, restoreSelectedChanges
 } from '../services/storage';
+import useImageSrc from '../hooks/useImageSrc';
+
+function AffectedImage({ url, name }) {
+  const src = useImageSrc(url);
+  return src ? <img src={src} alt={name} className="w-full h-full object-cover" /> : null;
+}
 
 export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshNonce }) {
   // Audit timeline state
@@ -654,7 +660,7 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
                         >
                           <div className="w-12 h-12 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center overflow-hidden shrink-0">
                             {ent.image_url ? (
-                              <img src={ent.image_url} alt={ent.name} className="w-full h-full object-cover" />
+                              <AffectedImage url={ent.image_url} name={ent.name} />
                             ) : ent.type === 'bin' ? (
                               <Box className="w-5 h-5 text-slate-700 stroke-1" />
                             ) : (
