@@ -212,23 +212,26 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
   if (flowMode === 'choice') {
     return (
       <div className="w-full max-w-md mx-auto py-6 px-4 space-y-6 relative overflow-hidden">
-        <button
-          onClick={() => onBack()}
-          className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-
         <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-600/10 rounded-full blur-3xl"></div>
 
-        <div className="text-center space-y-2">
-          <div className="p-3 bg-purple-500/10 rounded-full text-purple-400 w-fit mx-auto mb-2">
-            <QrCode className="w-8 h-8" />
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => onBack()}
+            className="p-2 -ml-1 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-purple-500/10 rounded-full text-purple-400">
+              <QrCode className="w-8 h-8" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-slate-200">Register Storage Bin</h1>
+              <p className="text-xs text-slate-400 max-w-xs">
+                How would you like to assign a QR code to this physical container?
+              </p>
+            </div>
           </div>
-          <h1 className="text-lg font-bold text-slate-200">Register Storage Bin</h1>
-          <p className="text-xs text-slate-400 max-w-xs mx-auto">
-            How would you like to assign a QR code to this physical container?
-          </p>
         </div>
 
         <div className="space-y-3 pt-2">

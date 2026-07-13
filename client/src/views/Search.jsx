@@ -687,18 +687,19 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
             className="glass-panel-modal w-full max-w-sm rounded-3xl p-6 relative space-y-5 animate-in fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              onClick={onBack}
-              className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
-              title="Back to Search"
-              aria-label="Back to Search"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-
-            <div className="text-center space-y-1.5">
-              <h2 className="text-base font-bold text-slate-200">Quick Add</h2>
-              <p className="text-xs text-slate-400">Choose what to create next.</p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={onBack}
+                className="p-2 -ml-1 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+                title="Back to Search"
+                aria-label="Back to Search"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div>
+                <h2 className="text-base font-bold text-slate-200">Quick Add</h2>
+                <p className="text-xs text-slate-400">Choose what to create next.</p>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-3">
