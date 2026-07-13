@@ -3,7 +3,7 @@ import cors from 'cors';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { v4 as uuidv4 } from 'uuid';
 import sharp from 'sharp';
 import { initDb, getDb, closeDb } from './db.js';
@@ -49,6 +49,18 @@ const dataURLToFile = (dataURL) => {
   fs.writeFileSync(destPath, Buffer.from(data, 'base64'));
   return `/uploads/${filename}`;
 };
+
+const getFileExtension = (filename) => {
+  const ext = path.extname(filename).slice(1).toLowerCase();
+  return ext === 'jpeg' ? 'jpg' : ext;
+};
+
+class BackupValidationError extends Error {
+  constructor(message, statusCode = 400) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
 
 // Helper: embed JSON metadata into EXIF ImageDescription of a JPEG/PNG file
 const embedImageMetadata = async (inputPath, metadata) => {
@@ -807,36 +819,137 @@ app.post('/api/items/batch', async (req, res) => {
   }
 });
 
-// 6. GET export inventory data as a .zip (JSON + optional uploads folder)
-app.get('/api/export/zip', async (req, res) => {
-  try {
-    const db = getDb();
-    const bins = await db.all('SELECT * FROM bins ORDER BY created_at DESC');
-    const items = await db.all('SELECT * FROM items ORDER BY created_at DESC');
+// 6. GET export inventory data as a .zip (JSON + images tree)
+export async function exportBackup(res, includeImages = true) {
+  const db = getDb();
+  const bins = await db.all('SELECT * FROM bins ORDER BY created_at DESC');
+  const items = await db.all('SELECT * FROM items ORDER BY created_at DESC');
 
-    const exportData = {
-      exported_at: new Date().toISOString(),
-      owner: 'dion',
-      bins,
-      items: items.map(item => ({
-        ...item,
-        search_tags: item.search_tags ? JSON.parse(item.search_tags) : []
-      }))
-    };
+  const slugify = (str, fallback) => {
+    const slug = String(str == null ? '' : str)
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .replace(/-{2,}/g, '-');
+    return slug || fallback || 'unknown';
+  };
 
-    res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', 'attachment; filename="smart_qr_backup.zip"');
+  const usedPaths = new Set();
+  const uniquePath = (p) => {
+    if (!usedPaths.has(p)) {
+      usedPaths.add(p);
+      return p;
+    }
+    const ext = path.extname(p);
+    const base = p.slice(0, -ext.length) || p;
+    let counter = 2;
+    let candidate;
+    do {
+      candidate = `${base}-${counter}${ext}`;
+      counter++;
+    } while (usedPaths.has(candidate));
+    usedPaths.add(candidate);
+    return candidate;
+  };
 
-    const archive = archiver('zip', { zlib: { level: 9 } });
-    archive.on('error', err => { throw err; });
+  const resolveImageSource = (imageUrl) => {
+    if (!imageUrl) return null;
+    if (imageUrl.startsWith('/uploads/')) {
+      const filename = path.basename(imageUrl);
+      const fullPath = path.join(uploadsDir, filename);
+      if (fs.existsSync(fullPath)) {
+        return { path: fullPath, ext: getFileExtension(filename) };
+      }
+      return null;
+    }
+    if (imageUrl.startsWith('data:')) {
+      const serverPath = dataURLToFile(imageUrl);
+      if (!serverPath) return null;
+      const filename = path.basename(serverPath);
+      const fullPath = path.join(uploadsDir, filename);
+      if (fs.existsSync(fullPath)) {
+        return { path: fullPath, ext: getFileExtension(filename) };
+      }
+      return null;
+    }
+    return null;
+  };
+
+  const binMap = new Map(bins.map(b => [b.id, b]));
+  const exportedBins = [];
+  const imageFiles = [];
+
+  for (const bin of bins) {
+    const locSlug = slugify(bin.location, 'unsorted-location');
+    const binSlug = slugify(bin.name, bin.id);
+    const exportedBin = { ...bin };
+    let imageUrl = null;
+
+    if (includeImages) {
+      const source = resolveImageSource(bin.image_url);
+      if (source) {
+        const zipPath = uniquePath(`images/${locSlug}/${binSlug}/bin.${source.ext}`);
+        imageFiles.push({ path: source.path, zipPath });
+        imageUrl = zipPath;
+      }
+    }
+
+    exportedBin.image_url = imageUrl;
+    exportedBins.push(exportedBin);
+  }
+
+  const exportedItems = [];
+  for (const item of items) {
+    const bin = binMap.get(item.bin_id);
+    const exportedItem = { ...item, search_tags: item.search_tags ? JSON.parse(item.search_tags) : [] };
+    let imageUrl = null;
+
+    if (includeImages && bin) {
+      const locSlug = slugify(bin.location, 'unsorted-location');
+      const binSlug = slugify(bin.name, bin.id);
+      const itemSlug = slugify(item.name, item.id);
+      const source = resolveImageSource(item.image_url);
+      if (source) {
+        const zipPath = uniquePath(`images/${locSlug}/${binSlug}/${itemSlug}.${source.ext}`);
+        imageFiles.push({ path: source.path, zipPath });
+        imageUrl = zipPath;
+      }
+    }
+
+    exportedItem.image_url = imageUrl;
+    exportedItems.push(exportedItem);
+  }
+
+  const exportData = {
+    exported_at: new Date().toISOString(),
+    owner: 'dion',
+    image_layout: 'images/<location>/<bin>/<item>.*',
+    bins: exportedBins,
+    items: exportedItems
+  };
+
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', 'attachment; filename="smart_qr_backup.zip"');
+
+  const archive = archiver('zip', { zlib: { level: 9 } });
+  await new Promise((resolve, reject) => {
+    archive.on('error', reject);
+    archive.on('finish', resolve);
     archive.pipe(res);
     archive.append(JSON.stringify(exportData, null, 2), { name: 'inventory.json' });
-
-    const includeImages = req.query.includeImages !== 'false' && req.query.includeImages !== false && req.query.includeImages !== '0';
-    if (includeImages && fs.existsSync(uploadsDir)) {
-      archive.directory(uploadsDir, 'uploads');
+    for (const image of imageFiles) {
+      archive.append(fs.readFileSync(image.path), { name: image.zipPath });
     }
-    await archive.finalize();
+    archive.finalize();
+  });
+}
+
+app.get('/api/export/zip', async (req, res) => {
+  try {
+    const includeImages = req.query.includeImages !== 'false' && req.query.includeImages !== false && req.query.includeImages !== '0';
+    await exportBackup(res, includeImages);
   } catch (err) {
     console.error(err);
     if (!res.headersSent) {
@@ -845,19 +958,14 @@ app.get('/api/export/zip', async (req, res) => {
   }
 });
 
-// 7. POST import zip backup (JSON + optional uploads folder)
-app.post('/api/import/zip', upload.single('file'), async (req, res) => {
+// 7. POST import zip backup (JSON + images tree)
+export async function importBackupZipFile(filePath) {
+  const extractDir = path.join(__dirname, 'tmp_imports', uuidv4());
+  fs.mkdirSync(extractDir, { recursive: true });
+
   try {
-    if (!req.file) {
-      return res.status(400).json({ success: false, message: 'No file uploaded' });
-    }
-
-    const tempPath = req.file.path;
-    const extractDir = path.join(__dirname, 'tmp_imports', uuidv4());
-    fs.mkdirSync(extractDir, { recursive: true });
-
     await new Promise((resolve, reject) => {
-      fs.createReadStream(tempPath)
+      fs.createReadStream(filePath)
         .pipe(unzipper.Extract({ path: extractDir }))
         .on('close', resolve)
         .on('error', reject);
@@ -865,51 +973,57 @@ app.post('/api/import/zip', upload.single('file'), async (req, res) => {
 
     const inventoryPath = path.join(extractDir, 'inventory.json');
     if (!fs.existsSync(inventoryPath)) {
-      fs.rmSync(extractDir, { recursive: true, force: true });
-      fs.unlinkSync(tempPath);
-      return res.status(400).json({ success: false, message: 'Invalid zip backup: inventory.json missing' });
+      throw new BackupValidationError('Invalid zip backup: inventory.json missing');
     }
 
     const data = JSON.parse(fs.readFileSync(inventoryPath, 'utf8'));
     if (!data.bins || !data.items) {
-      fs.rmSync(extractDir, { recursive: true, force: true });
-      fs.unlinkSync(tempPath);
-      return res.status(400).json({ success: false, message: 'Invalid inventory.json format' });
+      throw new BackupValidationError('Invalid inventory.json format');
     }
 
-    const extractedUploads = path.join(extractDir, 'uploads');
-    if (fs.existsSync(extractedUploads)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-      for (const entry of fs.readdirSync(extractedUploads, { withFileTypes: true })) {
-        if (entry.isFile()) {
-          fs.copyFileSync(
-            path.join(extractedUploads, entry.name),
-            path.join(uploadsDir, entry.name)
-          );
+    const resolveImportImageUrl = (imageUrl) => {
+      if (!imageUrl) return null;
+      if (imageUrl.startsWith('images/')) {
+        const normalizedPath = imageUrl.replace(/\//g, path.sep);
+        const fullPath = path.join(extractDir, normalizedPath);
+        if (fs.existsSync(fullPath)) {
+          const ext = getFileExtension(path.basename(fullPath));
+          const filename = `${uuidv4()}.${ext}`;
+          const destPath = path.join(uploadsDir, filename);
+          fs.copyFileSync(fullPath, destPath);
+          return `/uploads/${filename}`;
         }
+        return null;
       }
-    }
+      if (imageUrl.startsWith('data:')) {
+        return dataURLToFile(imageUrl);
+      }
+      return imageUrl;
+    };
 
     const db = getDb();
+
     await db.run('BEGIN TRANSACTION');
     try {
       await db.run('DELETE FROM items');
       await db.run('DELETE FROM bins');
 
       for (const bin of data.bins) {
+        const imageUrl = resolveImportImageUrl(bin.image_url);
         await db.run(
           `INSERT INTO bins (id, qr_id, name, location, image_url, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-          bin.id, bin.qr_id, bin.name, bin.location, bin.image_url, bin.created_at
+          bin.id, bin.qr_id, bin.name, bin.location, imageUrl, bin.created_at
         );
       }
 
       for (const item of data.items) {
+        const imageUrl = resolveImportImageUrl(item.image_url);
         const tagsString = item.search_tags
           ? (typeof item.search_tags === 'string' ? item.search_tags : JSON.stringify(item.search_tags))
           : null;
         await db.run(
           `INSERT INTO items (id, bin_id, name, description, image_url, search_tags, visible_text, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          item.id, item.bin_id, item.name, item.description, item.image_url, tagsString, item.visible_text, item.created_at
+          item.id, item.bin_id, item.name, item.description, imageUrl, tagsString, item.visible_text, item.created_at
         );
       }
 
@@ -920,12 +1034,34 @@ app.post('/api/import/zip', upload.single('file'), async (req, res) => {
     }
 
     await saveAuditEntry(db, 'IMPORT_ZIP', `Imported zip backup (${data.bins.length} bins, ${data.items.length} items)`);
-    fs.rmSync(extractDir, { recursive: true, force: true });
-    fs.unlinkSync(tempPath);
-    res.json({ success: true });
+
+    return { success: true };
+  } finally {
+    try {
+      fs.rmSync(extractDir, { recursive: true, force: true });
+    } catch (err) {
+      console.error('[importBackupZipFile] Failed to clean up extract dir:', err.message);
+    }
+    try {
+      fs.unlinkSync(filePath);
+    } catch (err) {
+      console.error('[importBackupZipFile] Failed to clean up uploaded zip file:', err.message);
+    }
+  }
+}
+
+app.post('/api/import/zip', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+    const result = await importBackupZipFile(req.file.path);
+    res.json(result);
   } catch (err) {
     console.error('Zip import failed:', err);
-    res.status(500).json({ success: false, message: 'Failed to import zip backup' });
+    if (!res.headersSent) {
+      res.status(err.statusCode || 500).json({ success: false, message: err.message || 'Failed to import zip backup' });
+    }
   }
 });
 
@@ -1387,19 +1523,23 @@ if (fs.existsSync(clientDist)) {
 }
 
 // Initialize DB and start listening
-initDb()
-  .then(async () => {
-    const db = getDb();
-    // Run cleanup on startup
-    await cleanupQuarantinedImages(db);
-    // Schedule cleanup every hour
-    setInterval(() => cleanupQuarantinedImages(getDb()), 60 * 60 * 1000);
+const isMainModule = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
+if (isMainModule) {
+  initDb()
+    .then(async () => {
+      const db = getDb();
+      // Run cleanup on startup
+      await cleanupQuarantinedImages(db);
+      // Schedule cleanup every hour
+      setInterval(() => cleanupQuarantinedImages(getDb()), 60 * 60 * 1000);
+
+      app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+      });
+    })
+    .catch(err => {
+      console.error("Failed to initialize database:", err);
+      process.exit(1);
     });
-  })
-  .catch(err => {
-    console.error("Failed to initialize database:", err);
-    process.exit(1);
-  });
+}
