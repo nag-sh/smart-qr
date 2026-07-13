@@ -336,7 +336,7 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
   };
 
   return (
-    <div className="w-full max-w-md mx-auto py-4 px-3 space-y-4 relative overflow-hidden">
+    <div className="w-full max-w-4xl mx-auto py-4 px-3 space-y-4 relative overflow-hidden">
       {/* Header with back button */}
       <div className="flex items-center gap-2.5">
         <button

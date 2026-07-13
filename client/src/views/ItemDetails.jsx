@@ -96,7 +96,7 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
 
   if (loading) {
     return (
-      <div className="w-full max-w-md mx-auto py-12 text-center space-y-4">
+      <div className="w-full max-w-4xl mx-auto py-12 text-center space-y-4">
         <RefreshCw className="w-8 h-8 animate-spin mx-auto text-purple-500" />
         <p className="text-sm text-slate-400">Loading item details...</p>
       </div>

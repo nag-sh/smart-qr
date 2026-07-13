@@ -23,10 +23,10 @@ import QRCode from 'qrcode';
 function ModalShell({ onClose, hideClose = false, children }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/30 backdrop-blur-md"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-slate-950/30 backdrop-blur-md"
       onClick={onClose}
     >
-      <div className="w-[92%] sm:w-auto max-w-4xl" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full sm:w-[96%] sm:max-w-4xl" onClick={(e) => e.stopPropagation()}>
         <div className="glass-panel-modal w-full max-h-[90vh] overflow-y-auto overflow-x-hidden rounded-3xl relative animate-in fade-in zoom-in-95 duration-200">
           {!hideClose && (
             <button

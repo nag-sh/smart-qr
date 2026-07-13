@@ -131,7 +131,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
 
   if (loading) {
     return (
-      <div className="w-full max-w-md mx-auto py-12 text-center space-y-4">
+      <div className="w-full max-w-4xl mx-auto py-12 text-center space-y-4">
         <RefreshCw className="w-8 h-8 animate-spin mx-auto text-purple-500" />
         <p className="text-sm text-slate-400">Loading bin inventory...</p>
       </div>
@@ -140,7 +140,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
 
   if (error || !bin) {
     return (
-      <div className="w-full max-w-md mx-auto py-6 px-4 space-y-4">
+      <div className="w-full max-w-4xl mx-auto py-6 px-4 space-y-4">
         <button
           onClick={() => onBack()}
           className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"

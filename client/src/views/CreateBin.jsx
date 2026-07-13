@@ -211,7 +211,7 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
   // 1. CHOOSE LINK MODE SCREEN
   if (flowMode === 'choice') {
     return (
-      <div className="w-full max-w-md mx-auto py-6 px-4 space-y-6 relative overflow-hidden">
+      <div className="w-full max-w-4xl mx-auto py-6 px-4 space-y-6 relative overflow-hidden">
         <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-600/10 rounded-full blur-3xl"></div>
 
         <div className="flex items-center gap-3">
@@ -282,7 +282,7 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
   // 2. DIGITAL QR SUCCESS RECEIPT SCREEN
   if (successBin && generatedQrText) {
     return (
-      <div className="w-full max-w-md mx-auto py-6 px-4 space-y-6 relative overflow-hidden">
+      <div className="w-full max-w-4xl mx-auto py-6 px-4 space-y-6 relative overflow-hidden">
         {/* Confetti-like glow */}
         <div className="absolute -top-24 -right-24 w-48 h-48 bg-emerald-600/10 rounded-full blur-3xl"></div>
 
@@ -356,7 +356,7 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
 
   // 3. CREATE BIN FORM
   return (
-    <div className="w-full max-w-md mx-auto py-6 px-4 relative overflow-hidden">
+    <div className="w-full max-w-4xl mx-auto py-6 px-4 relative overflow-hidden">
       {/* Glow decoration */}
       <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-600/10 rounded-full blur-3xl pointer-events-none"></div>
 

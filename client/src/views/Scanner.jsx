@@ -235,7 +235,7 @@ export default function Scanner({ onNavigate, onBack }) {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto py-6 px-4 space-y-6 relative overflow-hidden">
+    <div className="w-full max-w-4xl mx-auto py-6 px-4 space-y-6 relative overflow-hidden">
       <div className="absolute -top-24 -left-24 w-48 h-48 bg-purple-600/10 rounded-full blur-3xl pointer-events-none"></div>
 
       <div className="p-5 flex items-center gap-3 border-b border-slate-800/50">
