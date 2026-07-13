@@ -2,9 +2,10 @@
  * Client Storage and Sync Service
  * Abstracts database interactions to support either:
  * 1. Server mode (SQLite backend API on port 5005)
- * 2. Local-only mode (PWA client-side localStorage/offline)
+ * 2. Local-only mode (PWA client-side IndexedDB/offline)
  */
 
+import { Capacitor } from '@capacitor/core';
 import piexif from 'piexifjs';
 import {
   storeImage,
@@ -14,21 +15,27 @@ import {
   blobToDataURL,
   isImageRef
 } from './localImages';
+import { getSetting, setSetting, removeSetting } from './appStore.js';
+import { getTable, setTable, migrateFromLocalStorage } from './dbStore.js';
+
+// Synchronous cached mode used by getStorageMode()/isLocalOnly().
+// initStorage() must run at app bootstrap to populate this value.
+let _cachedMode = 'local';
 
 // Helper to get local storage tables
-const getLocalTable = (key) => {
+const getLocalTable = async (key) => {
   try {
-    const data = localStorage.getItem(key);
-    return data ? JSON.parse(data) : [];
+    const data = await getTable(key);
+    return data ?? [];
   } catch (err) {
     console.error(`Error reading local table ${key}:`, err);
     return [];
   }
 };
 
-const setLocalTable = (key, data) => {
+const setLocalTable = async (key, data) => {
   try {
-    localStorage.setItem(key, JSON.stringify(data));
+    await setTable(key, data);
   } catch (err) {
     console.error(`Error writing local table ${key}:`, err);
     throw new Error('Local browser storage quota exceeded. Try deleting some item photos.');
@@ -36,16 +43,33 @@ const setLocalTable = (key, data) => {
 };
 
 export const getStorageMode = () => {
-  return localStorage.getItem('storage_mode') || 'local'; // 'server' | 'local'
+  return _cachedMode; // 'server' | 'local'
 };
 
-export const setStorageMode = (mode) => {
-  localStorage.setItem('storage_mode', mode);
+export const setStorageMode = async (mode) => {
+  await setSetting('storage_mode', mode);
+  _cachedMode = mode;
 };
 
 export const isLocalOnly = () => {
   return getStorageMode() === 'local';
 };
+
+export async function initStorage() {
+  const persisted = await getSetting('storage_mode');
+  _cachedMode = persisted || 'local';
+
+  if (Capacitor.isNativePlatform()) {
+    _cachedMode = 'local';
+    await setSetting('storage_mode', 'local');
+    await removeSetting('cloud_server_url');
+    await removeSetting('cloud_api_token');
+  }
+
+  await migrateFromLocalStorage();
+
+  console.log('[initStorage] mode=', _cachedMode, 'native=', Capacitor.isNativePlatform());
+}
 
 /**
  * Convert an image data URL to a JPEG data URL via an offscreen canvas.
@@ -100,11 +124,11 @@ async function embedLocalImageMetadata(input, metadata) {
 /**
  * Append an entry to the local audit log. Never throws.
  */
-function saveLocalAuditEntry(operation, description) {
+async function saveLocalAuditEntry(operation, description) {
   try {
-    const bins = getLocalTable('local_bins');
-    const items = getLocalTable('local_items');
-    const log = getLocalTable('local_audit_log');
+    const bins = await getLocalTable('local_bins');
+    const items = await getLocalTable('local_items');
+    const log = await getLocalTable('local_audit_log');
     log.push({
       id: crypto.randomUUID(),
       operation,
@@ -114,7 +138,7 @@ function saveLocalAuditEntry(operation, description) {
       created_at: new Date().toISOString(),
       granularity: 'individual'
     });
-    setLocalTable('local_audit_log', log);
+    await setLocalTable('local_audit_log', log);
   } catch (err) {
     console.error('saveLocalAuditEntry failed silently:', err);
   }
@@ -125,9 +149,9 @@ function saveLocalAuditEntry(operation, description) {
  * - 24h–7d entries: keep only last per calendar day → granularity='daily'
  * - >7d entries: keep only last per ISO week → granularity='weekly'
  */
-function consolidateLocalAuditLog() {
+async function consolidateLocalAuditLog() {
   try {
-    const log = getLocalTable('local_audit_log');
+    const log = await getLocalTable('local_audit_log');
     const now = Date.now();
     const DAY = 86400000;
     const WEEK = 604800000;
@@ -162,7 +186,7 @@ function consolidateLocalAuditLog() {
       ...Object.values(byDay),
       ...Object.values(byWeek)
     ];
-    setLocalTable('local_audit_log', consolidated);
+    await setLocalTable('local_audit_log', consolidated);
   } catch (err) {
     console.error('consolidateLocalAuditLog failed:', err);
   }
@@ -171,15 +195,15 @@ function consolidateLocalAuditLog() {
 /**
  * Remove quarantine entries older than 72 hours.
  */
-function cleanupLocalQuarantine() {
+async function cleanupLocalQuarantine() {
   try {
-    const quarantine = getLocalTable('local_quarantine');
+    const quarantine = await getLocalTable('local_quarantine');
     const cutoff = Date.now() - 72 * 3600000;
     const filtered = quarantine.filter(entry => {
       const t = new Date(entry.quarantined_at).getTime();
       return t >= cutoff;
     });
-    setLocalTable('local_quarantine', filtered);
+    await setLocalTable('local_quarantine', filtered);
   } catch (err) {
     console.error('cleanupLocalQuarantine failed:', err);
   }
@@ -190,8 +214,8 @@ function cleanupLocalQuarantine() {
  */
 export async function getBins() {
   if (isLocalOnly()) {
-    const bins = getLocalTable('local_bins');
-    const items = getLocalTable('local_items');
+    const bins = await getLocalTable('local_bins');
+    const items = await getLocalTable('local_items');
     
     // Join items to count them for each bin
     return bins.map(bin => {
@@ -214,8 +238,8 @@ export async function getBins() {
  */
 export async function getBin(idOrQr) {
   if (isLocalOnly()) {
-    const bins = getLocalTable('local_bins');
-    const items = getLocalTable('local_items');
+    const bins = await getLocalTable('local_bins');
+    const items = await getLocalTable('local_items');
 
     // Match by qr_id first, then database UUID id
     let bin = bins.find(b => b.qr_id === idOrQr);
@@ -248,7 +272,7 @@ export async function getBin(idOrQr) {
  */
 export async function createBin(qrId, name, location, imageFile) {
   if (isLocalOnly()) {
-    const bins = getLocalTable('local_bins');
+    const bins = await getLocalTable('local_bins');
     
     // Check duplication
     if (bins.some(b => b.qr_id === qrId)) {
@@ -283,8 +307,8 @@ export async function createBin(qrId, name, location, imageFile) {
     };
 
     bins.push(newBin);
-    setLocalTable('local_bins', bins);
-    saveLocalAuditEntry('CREATE_BIN', `Created bin: ${name.trim()}`);
+    await setLocalTable('local_bins', bins);
+    await saveLocalAuditEntry('CREATE_BIN', `Created bin: ${name.trim()}`);
     return newBin;
   }
 
@@ -310,8 +334,8 @@ export async function createBin(qrId, name, location, imageFile) {
  */
 export async function createItem(binId, name, description, searchTagsArray, visibleText, imageFile) {
   if (isLocalOnly()) {
-    const bins = getLocalTable('local_bins');
-    const items = getLocalTable('local_items');
+    const bins = await getLocalTable('local_bins');
+    const items = await getLocalTable('local_items');
 
     // Confirm parent bin exists
     const parentBin = bins.find(b => b.id === binId);
@@ -351,8 +375,8 @@ export async function createItem(binId, name, description, searchTagsArray, visi
     };
 
     items.push(newItem);
-    setLocalTable('local_items', items);
-    saveLocalAuditEntry('CREATE_ITEM', `Created item: ${name.trim()} in bin: ${parentBin.name}`);
+    await setLocalTable('local_items', items);
+    await saveLocalAuditEntry('CREATE_ITEM', `Created item: ${name.trim()} in bin: ${parentBin.name}`);
     return newItem;
   }
 
@@ -380,8 +404,8 @@ export async function createItem(binId, name, description, searchTagsArray, visi
  */
 export async function searchItems(query) {
   if (isLocalOnly()) {
-    const bins = getLocalTable('local_bins');
-    const items = getLocalTable('local_items');
+    const bins = await getLocalTable('local_bins');
+    const items = await getLocalTable('local_items');
 
     // Join parent bin details
     const joinedItems = items.map(item => {
@@ -424,9 +448,9 @@ export async function searchItems(query) {
 /**
  * Helper to load local database contents for JSON export
  */
-export function getLocalExportData() {
-  const bins = getLocalTable('local_bins');
-  const items = getLocalTable('local_items');
+export async function getLocalExportData() {
+  const bins = await getLocalTable('local_bins');
+  const items = await getLocalTable('local_items');
   return {
     exported_at: new Date().toISOString(),
     owner: 'dion',
@@ -486,8 +510,8 @@ export async function restoreLocalData(data) {
   };
   const bins = await Promise.all(data.bins.map(convertRecord));
   const items = await Promise.all(data.items.map(convertRecord));
-  setLocalTable('local_bins', bins);
-  setLocalTable('local_items', items);
+  await setLocalTable('local_bins', bins);
+  await setLocalTable('local_items', items);
 }
 
 /**
@@ -495,7 +519,7 @@ export async function restoreLocalData(data) {
  */
 export async function updateBin(id, fields, imageFile = null) {
   if (isLocalOnly()) {
-    const bins = getLocalTable('local_bins');
+    const bins = await getLocalTable('local_bins');
     const idx = bins.findIndex(b => b.id === id);
     if (idx === -1) throw new Error('Bin not found');
 
@@ -526,8 +550,8 @@ export async function updateBin(id, fields, imageFile = null) {
       image_url
     };
 
-    setLocalTable('local_bins', bins);
-    saveLocalAuditEntry('EDIT_BIN', `Edited bin: ${bins[idx].name}`);
+    await setLocalTable('local_bins', bins);
+    await saveLocalAuditEntry('EDIT_BIN', `Edited bin: ${bins[idx].name}`);
     return bins[idx];
   }
 
@@ -550,8 +574,8 @@ export async function updateBin(id, fields, imageFile = null) {
  */
 export async function deleteBin(id) {
   if (isLocalOnly()) {
-    const bins = getLocalTable('local_bins');
-    const items = getLocalTable('local_items');
+    const bins = await getLocalTable('local_bins');
+    const items = await getLocalTable('local_items');
 
     const binItems = items.filter(i => i.bin_id === id);
     if (binItems.length > 0) {
@@ -566,10 +590,10 @@ export async function deleteBin(id) {
       if (isImageRef(bin.image_url)) {
         await deleteImage(bin.image_url);
       }
-      saveLocalAuditEntry('DELETE_BIN', `Deleted bin: ${bin.name}`);
+      await saveLocalAuditEntry('DELETE_BIN', `Deleted bin: ${bin.name}`);
     }
 
-    setLocalTable('local_bins', bins.filter(b => b.id !== id));
+    await setLocalTable('local_bins', bins.filter(b => b.id !== id));
     return { success: true };
   }
 
@@ -590,7 +614,7 @@ export async function deleteBin(id) {
  */
 export async function batchManageItems(binId, action, itemIds, targetBinId = null) {
   if (isLocalOnly()) {
-    const items = getLocalTable('local_items');
+    const items = await getLocalTable('local_items');
 
     if (action === 'reassign') {
       const updated = items.map(item => {
@@ -599,7 +623,7 @@ export async function batchManageItems(binId, action, itemIds, targetBinId = nul
         }
         return item;
       });
-      setLocalTable('local_items', updated);
+      await setLocalTable('local_items', updated);
     } else if (action === 'delete') {
       const toDelete = items.filter(i => itemIds.includes(i.id));
       for (const i of toDelete) {
@@ -607,10 +631,10 @@ export async function batchManageItems(binId, action, itemIds, targetBinId = nul
           await deleteImage(i.image_url);
         }
       }
-      setLocalTable('local_items', items.filter(i => !itemIds.includes(i.id)));
+      await setLocalTable('local_items', items.filter(i => !itemIds.includes(i.id)));
     }
 
-    saveLocalAuditEntry('BATCH_ITEMS', `Batch ${action} of ${itemIds.length} item(s) from bin ${binId}`);
+    await saveLocalAuditEntry('BATCH_ITEMS', `Batch ${action} of ${itemIds.length} item(s) from bin ${binId}`);
     return { success: true };
   }
 
@@ -629,13 +653,13 @@ export async function batchManageItems(binId, action, itemIds, targetBinId = nul
  */
 export async function updateItem(id, fields, imageFile = null) {
   if (isLocalOnly()) {
-    const items = getLocalTable('local_items');
+    const items = await getLocalTable('local_items');
     const idx = items.findIndex(i => i.id === id);
     if (idx === -1) throw new Error('Item not found');
 
     let image_url = items[idx].image_url;
 
-    const localBins = getLocalTable('local_bins');
+    const localBins = await getLocalTable('local_bins');
     const parentBin = localBins.find(b => b.id === items[idx].bin_id);
 
     if (imageFile) {
@@ -667,8 +691,8 @@ export async function updateItem(id, fields, imageFile = null) {
       image_url
     };
 
-    setLocalTable('local_items', items);
-    saveLocalAuditEntry('EDIT_ITEM', `Edited item: ${items[idx].name}`);
+    await setLocalTable('local_items', items);
+    await saveLocalAuditEntry('EDIT_ITEM', `Edited item: ${items[idx].name}`);
     return items[idx];
   }
 
@@ -693,15 +717,15 @@ export async function updateItem(id, fields, imageFile = null) {
  */
 export async function deleteItem(id) {
   if (isLocalOnly()) {
-    const items = getLocalTable('local_items');
+    const items = await getLocalTable('local_items');
     const item = items.find(i => i.id === id);
     if (item) {
       if (isImageRef(item.image_url)) {
         await deleteImage(item.image_url);
       }
-      saveLocalAuditEntry('DELETE_ITEM', `Deleted item: ${item.name}`);
+      await saveLocalAuditEntry('DELETE_ITEM', `Deleted item: ${item.name}`);
     }
-    setLocalTable('local_items', items.filter(i => i.id !== id));
+    await setLocalTable('local_items', items.filter(i => i.id !== id));
     return { success: true };
   }
 
@@ -716,9 +740,9 @@ export async function deleteItem(id) {
  */
 export async function getAuditLog() {
   if (isLocalOnly()) {
-    consolidateLocalAuditLog();
-    cleanupLocalQuarantine();
-    const log = getLocalTable('local_audit_log');
+    await consolidateLocalAuditLog();
+    await cleanupLocalQuarantine();
+    const log = await getLocalTable('local_audit_log');
     const sorted = [...log].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     return { entries: sorted };
   }
@@ -734,7 +758,7 @@ export async function getAuditLog() {
  */
 export async function restoreAuditEntry(id) {
   if (isLocalOnly()) {
-    const log = getLocalTable('local_audit_log');
+    const log = await getLocalTable('local_audit_log');
     const entry = log.find(e => e.id === id);
     if (!entry) throw new Error('Audit entry not found');
 
@@ -758,16 +782,16 @@ export async function restoreAuditEntry(id) {
           }
         }
       }
-      const currentItems = getLocalTable('local_items');
+      const currentItems = await getLocalTable('local_items');
       restoredItems = [
         ...recovered.values(),
         ...currentItems.filter(ci => !recovered.has(ci.id))
       ];
     }
 
-    setLocalTable('local_bins', bins);
-    setLocalTable('local_items', restoredItems);
-    saveLocalAuditEntry('RESTORE', `Restored to: ${entry.description}`);
+    await setLocalTable('local_bins', bins);
+    await setLocalTable('local_items', restoredItems);
+    await saveLocalAuditEntry('RESTORE', `Restored to: ${entry.description}`);
     return { success: true };
   }
 
@@ -782,15 +806,15 @@ export async function restoreAuditEntry(id) {
  */
 export async function cherryPickAuditEntry(id, binIds = [], itemIds = []) {
   if (isLocalOnly()) {
-    const log = getLocalTable('local_audit_log');
+    const log = await getLocalTable('local_audit_log');
     const entry = log.find(e => e.id === id);
     if (!entry) throw new Error('Audit entry not found');
 
     const snapBins = JSON.parse(entry.bins_snapshot);
     const snapItems = JSON.parse(entry.items_snapshot);
 
-    const currentBins = getLocalTable('local_bins');
-    const currentItems = getLocalTable('local_items');
+    const currentBins = await getLocalTable('local_bins');
+    const currentItems = await getLocalTable('local_items');
 
     // Merge picked bins (overwrite on ID conflict)
     const pickedBins = snapBins.filter(b => binIds.includes(b.id));
@@ -825,9 +849,9 @@ export async function cherryPickAuditEntry(id, binIds = [], itemIds = []) {
       ];
     }
 
-    setLocalTable('local_bins', mergedBins);
-    setLocalTable('local_items', mergedItems);
-    saveLocalAuditEntry('CHERRY_PICK', `Cherry picked ${pickedBins.length} bin(s) and ${pickedItems.length} item(s) from checkpoint: ${entry.description}`);
+    await setLocalTable('local_bins', mergedBins);
+    await setLocalTable('local_items', mergedItems);
+    await saveLocalAuditEntry('CHERRY_PICK', `Cherry picked ${pickedBins.length} bin(s) and ${pickedItems.length} item(s) from checkpoint: ${entry.description}`);
     return { success: true };
   }
 
@@ -846,15 +870,15 @@ export async function cherryPickAuditEntry(id, binIds = [], itemIds = []) {
  */
 export async function restoreSelectedChanges(ids) {
   if (isLocalOnly()) {
-    const log = getLocalTable('local_audit_log');
+    const log = await getLocalTable('local_audit_log');
     // Sort log chronologically (ascending)
     const sortedLog = [...log].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
     const binsToRestoreMap = new Map();
     const itemsToRestoreMap = new Map();
 
-    const currentBins = getLocalTable('local_bins');
-    const currentItems = getLocalTable('local_items');
+    const currentBins = await getLocalTable('local_bins');
+    const currentItems = await getLocalTable('local_items');
 
     for (const id of ids) {
       const idx = sortedLog.findIndex(e => e.id === id);
@@ -976,9 +1000,9 @@ export async function restoreSelectedChanges(ids) {
       ...currentItems.filter(ci => !itemsToRestore.some(pi => pi.id === ci.id))
     ];
 
-    setLocalTable('local_bins', mergedBins);
-    setLocalTable('local_items', mergedItems);
-    saveLocalAuditEntry('CHERRY_PICK', `Restored ${binsToRestore.length} bin(s) and ${itemsToRestore.length} item(s) by selective cherry-pick`);
+    await setLocalTable('local_bins', mergedBins);
+    await setLocalTable('local_items', mergedItems);
+    await saveLocalAuditEntry('CHERRY_PICK', `Restored ${binsToRestore.length} bin(s) and ${itemsToRestore.length} item(s) by selective cherry-pick`);
     return { success: true, binsCount: binsToRestore.length, itemsCount: itemsToRestore.length };
   }
 
@@ -1003,8 +1027,8 @@ export async function restoreSelectedChanges(ids) {
  */
 export async function batchDeleteBins(binIds) {
   if (isLocalOnly()) {
-    const bins = getLocalTable('local_bins');
-    const items = getLocalTable('local_items');
+    const bins = await getLocalTable('local_bins');
+    const items = await getLocalTable('local_items');
 
     for (const id of binIds) {
       const binItems = items.filter(i => i.bin_id === id);
@@ -1028,8 +1052,8 @@ export async function batchDeleteBins(binIds) {
       }
     }
 
-    setLocalTable('local_bins', bins.filter(b => !binIds.includes(b.id)));
-    saveLocalAuditEntry('BATCH_DELETE_BINS', `Batch deleted ${binIds.length} bin(s): ${deletedNames.join(', ')}`);
+    await setLocalTable('local_bins', bins.filter(b => !binIds.includes(b.id)));
+    await saveLocalAuditEntry('BATCH_DELETE_BINS', `Batch deleted ${binIds.length} bin(s): ${deletedNames.join(', ')}`);
     return { success: true };
   }
 
@@ -1054,15 +1078,15 @@ export async function batchDeleteBins(binIds) {
  */
 export async function batchUpdateBinLocations(binIds, location) {
   if (isLocalOnly()) {
-    const bins = getLocalTable('local_bins');
+    const bins = await getLocalTable('local_bins');
     const updated = bins.map(bin => {
       if (binIds.includes(bin.id)) {
         return { ...bin, location: location.trim() };
       }
       return bin;
     });
-    setLocalTable('local_bins', updated);
-    saveLocalAuditEntry('BATCH_UPDATE_LOCATIONS', `Batch updated location to "${location}" for ${binIds.length} bin(s)`);
+    await setLocalTable('local_bins', updated);
+    await saveLocalAuditEntry('BATCH_UPDATE_LOCATIONS', `Batch updated location to "${location}" for ${binIds.length} bin(s)`);
     return { success: true };
   }
 
@@ -1081,17 +1105,17 @@ export async function batchUpdateBinLocations(binIds, location) {
  */
 export async function batchDeleteItems(itemIds) {
   if (isLocalOnly()) {
-    const items = getLocalTable('local_items');
+    const items = await getLocalTable('local_items');
     const toDelete = items.filter(i => itemIds.includes(i.id));
     for (const i of toDelete) {
       if (isImageRef(i.image_url)) {
         await deleteImage(i.image_url);
       }
     }
-    setLocalTable('local_items', items.filter(i => !itemIds.includes(i.id)));
+    await setLocalTable('local_items', items.filter(i => !itemIds.includes(i.id)));
 
     const names = toDelete.map(i => i.name).join(', ');
-    saveLocalAuditEntry('BATCH_DELETE_ITEMS', `Batch deleted ${itemIds.length} item(s): ${names}`);
+    await saveLocalAuditEntry('BATCH_DELETE_ITEMS', `Batch deleted ${itemIds.length} item(s): ${names}`);
     return { success: true };
   }
 
@@ -1110,15 +1134,15 @@ export async function batchDeleteItems(itemIds) {
  */
 export async function batchMoveItems(itemIds, targetBinId) {
   if (isLocalOnly()) {
-    const items = getLocalTable('local_items');
+    const items = await getLocalTable('local_items');
     const updated = items.map(item => {
       if (itemIds.includes(item.id)) {
         return { ...item, bin_id: targetBinId };
       }
       return item;
     });
-    setLocalTable('local_items', updated);
-    saveLocalAuditEntry('BATCH_MOVE_ITEMS', `Batch moved ${itemIds.length} item(s) to bin ${targetBinId}`);
+    await setLocalTable('local_items', updated);
+    await saveLocalAuditEntry('BATCH_MOVE_ITEMS', `Batch moved ${itemIds.length} item(s) to bin ${targetBinId}`);
     return { success: true };
   }
 

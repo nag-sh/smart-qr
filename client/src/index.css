@@ -75,37 +75,31 @@
   background: linear-gradient(135deg, rgba(88, 28, 135, 0.15) 0%, rgba(131, 24, 67, 0.15) 100%);
 }
 
-/* Pulsing QR Target Overlay Animation */
+/* Pulsing QR Target Overlay Animation — compositor-only (opacity/scale) to avoid paint jank */
 @keyframes qr-scan-pulse {
-  0%, 100% {
-    border-color: rgba(168, 85, 247, 0.4);
-    box-shadow: 0 0 8px rgba(168, 85, 247, 0.2);
-  }
-  50% {
-    border-color: rgba(236, 72, 153, 0.8);
-    box-shadow: 0 0 20px rgba(236, 72, 153, 0.5);
-  }
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.03); }
 }
 
 .animate-qr-pulse {
   animation: qr-scan-pulse 2s infinite ease-in-out;
+  will-change: transform, opacity;
 }
 
-/* Scanning Line Animation */
-@keyframes scan-line-move {
-  0% {
-    top: 0%;
-  }
-  50% {
-    top: 100%;
-  }
-  100% {
-    top: 0%;
-  }
+/* Scanning Line Animation — compositor-only (transform) sweep */
+.scan-line-gradient {
+  background: linear-gradient(to bottom, transparent 0%, transparent 47%, rgba(236, 72, 153, 0.9) 50%, transparent 53%, transparent 100%);
 }
 
-.animate-scan-line {
-  animation: scan-line-move 3s infinite linear;
+@keyframes scan-sweep {
+  0% { transform: translateY(-50%); }
+  50% { transform: translateY(50%); }
+  100% { transform: translateY(-50%); }
+}
+
+.animate-scan-sweep {
+  animation: scan-sweep 3s linear infinite;
+  will-change: transform;
 }
 
 /* Scrollbar styling */
@@ -134,10 +128,10 @@
   display: block;
 }
 
-/* Print styles for 8.5x11 Landscape Labels */
+/* Print styles for 8.5x11 Portrait Labels */
 @media print {
   @page {
-    size: letter landscape;
+    size: 8.5in 11in;
     margin: 0;
   }
   
@@ -158,13 +152,15 @@
     display: none !important;
   }
 
-  .print-label-only {
+  /* Only render the React-managed label inside the app root; ignore any
+     stray DOM elements (e.g. from debugging tools) outside #root. */
+  #root .print-label-only {
     display: flex !important;
     flex-direction: column !important;
     align-items: center !important;
     justify-content: center !important;
-    width: 11in !important;
-    height: 8.5in !important;
+    width: 8.5in !important;
+    height: 11in !important;
     box-sizing: border-box !important;
     padding: 0.4in !important;
     gap: 0.75in !important;
@@ -190,5 +186,40 @@
     letter-spacing: 0.03em !important;
     line-height: 1.05 !important;
     text-align: center !important;
+  }
+
+  #root .print-random-qr {
+    display: block !important;
+    overflow: visible !important;
+  }
+
+  .print-page {
+    box-sizing: border-box !important;
+    display: block !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    page-break-after: always !important;
+    page-break-inside: avoid !important;
+  }
+
+  .print-page:last-child {
+    page-break-after: auto !important;
+  }
+
+  .print-page-inner {
+    display: grid !important;
+    grid-auto-rows: 1fr !important;
+    align-content: center !important;
+    justify-items: center !important;
+    align-items: center !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  .print-random-qr-code {
+    display: block !important;
+    object-fit: contain !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
   }
 }

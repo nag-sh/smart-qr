@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Search as SearchIcon, MapPin, QrCode, LayoutGrid, List, Image as ImageIcon, Box, Package, Filter as FilterIcon, Tag, Trash2, Move, RefreshCw, Check, X, ArrowLeft, Settings as SettingsIcon } from 'lucide-react';
 import { getBins, searchItems, batchDeleteBins, batchUpdateBinLocations, batchDeleteItems, batchMoveItems } from '../services/storage';
 import EntityList from '../components/EntityList';
@@ -20,6 +21,7 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
   const [selectedTags, setSelectedTags] = useState(new Set());
   const [selectedBins, setSelectedBins] = useState(new Set());
   const [selectedHasFields, setSelectedHasFields] = useState(new Set());
+  const [searchParams] = useSearchParams();
 
   const activeFilterCount = selectedLocations.size + selectedTags.size + selectedBins.size + selectedHasFields.size;
 
@@ -87,6 +89,16 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
       hasFields: Array.from(selectedHasFields)
     }));
   }, [selectedLocations, selectedTags, selectedBins, selectedHasFields]);
+
+  useEffect(() => {
+    const loc = searchParams.get('filterLocation');
+    if (loc) {
+      setSelectedLocations(new Set([loc]));
+      setSelectedTags(new Set());
+      setSelectedBins(new Set());
+      setSelectedHasFields(new Set());
+    }
+  }, [searchParams]);
 
   // Bins state
   const [bins, setBins] = useState([]);
@@ -567,6 +579,7 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
         loading={binsLoading || itemsLoading}
         emptyMessage="No bins or items found"
         typeLabels={{ bin: 'Bin', item: 'Item' }}
+        onLocationClick={(loc) => onNavigate('search', { location: loc })}
       />
 
       {/* Manage Mode Floating Action Bar */}
@@ -734,6 +747,22 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
                   <span className="block text-[10px] text-slate-500">Add an item to a bin</span>
                 </div>
               </button>
+
+              <button
+                onClick={() => {
+                  onNavigate('print-randomized');
+                }}
+                className="flex items-center gap-3 p-4 rounded-2xl glass-card border border-slate-800/60 hover:border-cyan-500/30 hover:bg-slate-900/60 transition-all cursor-pointer text-left group"
+                aria-label="Print Randomized QR Codes"
+              >
+                <div className="p-2 bg-cyan-500/10 rounded-xl text-cyan-400 group-hover:scale-110 transition-transform">
+                  <QrCode className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="block text-sm font-bold text-slate-200 group-hover:text-cyan-300">Print Randomized QR Codes</span>
+                  <span className="block text-[10px] text-slate-500">Bulk print blank QR labels</span>
+                </div>
+              </button>
             </div>
           </div>
         </div>
@@ -748,7 +777,7 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
           aria-label="Filters"
         >
           <div
-            className="fixed inset-y-0 right-0 z-50 w-full max-w-sm glass-panel border-l border-slate-800 shadow-2xl flex flex-col transform transition-transform duration-300 ease-in-out translate-x-0"
+            className="fixed inset-y-0 right-0 z-50 w-full max-w-sm glass-panel border-l border-slate-800 shadow-2xl flex flex-col transform transition-transform duration-300 ease-in-out translate-x-0 pt-[max(env(safe-area-inset-top),1rem)]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-4 border-b border-slate-800/60 shrink-0">
@@ -761,6 +790,14 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <h2 className="text-base font-bold text-slate-200">Filters</h2>
+              <button
+                onClick={onBack}
+                className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+                title="Close filters"
+                aria-label="Close filters"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-6">

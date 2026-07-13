@@ -17,6 +17,7 @@ function EntityList({
   onSelectToggle,
   onEntryClick,
   onLongPress,
+  onLocationClick,
   onLoadMore,
   hasMore = false,
   loading = false,
@@ -193,10 +194,10 @@ function EntityList({
               </div>
               <div className="p-4 space-y-1.5">
                 <h3 className="font-bold text-sm text-slate-100 truncate">{entry.name}</h3>
-                <div className="flex items-center gap-1 text-[11px] text-slate-400">
+                <button type="button" onClick={(e) => { e.stopPropagation(); onLocationClick?.(entry.location); }} className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-purple-300 transition-colors cursor-pointer">
                   <MapPin className="w-3.5 h-3.5 text-pink-400 shrink-0" />
                   <span className="truncate">{entry.location}</span>
-                </div>
+                </button>
               </div>
             </>
           ) : (
@@ -289,10 +290,10 @@ function EntityList({
             <div className="min-w-0">
               <h3 className="font-bold text-sm text-slate-200 truncate">{entry.name}</h3>
               {entry.type === 'bin' ? (
-                <div className="flex items-center gap-1 mt-0.5 text-[10px] text-slate-500">
+                <button type="button" onClick={(e) => { e.stopPropagation(); onLocationClick?.(entry.location); }} className="flex items-center gap-1 mt-0.5 text-[10px] text-slate-500 hover:text-purple-300 transition-colors cursor-pointer">
                   <MapPin className="w-3 h-3 text-pink-400 shrink-0" />
                   <span className="truncate">{entry.location}</span>
-                </div>
+                </button>
               ) : (
                 <p className="text-[11px] text-slate-500 truncate mt-0.5 max-w-[200px] sm:max-w-md">
                   {entry.description || 'No description provided.'}
@@ -317,10 +318,10 @@ function EntityList({
                     <Box className="w-3.5 h-3.5 text-purple-400 shrink-0" />
                     {entry.bin_name}
                   </span>
-                  <span className="text-[9px] text-slate-500 flex items-center gap-0.5">
+                  <button type="button" onClick={(e) => { e.stopPropagation(); onLocationClick?.(entry.bin_location); }} className="text-[9px] text-slate-500 flex items-center gap-0.5 hover:text-purple-300 transition-colors cursor-pointer">
                     <MapPin className="w-2.5 h-2.5 text-pink-400" />
                     {entry.bin_location}
-                  </span>
+                  </button>
                 </div>
                 {entry.search_tags && entry.search_tags.length > 0 && (
                   <div className="hidden md:flex items-center gap-1">

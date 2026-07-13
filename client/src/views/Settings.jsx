@@ -1,17 +1,19 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Key, Eye, EyeOff, Save, CheckCircle2, AlertTriangle, 
   ExternalLink, FileJson, Download, Upload, Server,
-  RefreshCw, ArrowDownToLine, ArrowUpFromLine, History, ArrowRight, ArrowLeft, Cloud
+  RefreshCw, ArrowDownToLine, ArrowUpFromLine, History, ArrowRight, ArrowLeft, Cloud, Share2
 } from 'lucide-react';
+import { isNative } from '../utils/platform.js';
 import { 
-  getStorageMode, setStorageMode as persistStorageMode, 
+  getStorageMode, setStorageMode as persistStorageMode, initStorage,
   getLocalExportData, restoreLocalData,
   localRecordsForSync, localRecordsFromSync
 } from '../services/storage';
 import {
   slugify, planImagePath, getImageBlob, storeImage, isImageRef, EXT_FROM_TYPE, dataURLToBlob
 } from '../services/localImages';
+import { saveBackup, shareBackup, pickBackup } from '../services/nativeFiles';
 import JSZip from 'jszip';
 
 export default function Settings({ onNavigate, onBack, modalTypes }) {
@@ -23,13 +25,18 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
   // Storage and database mode states
   const [storageMode, setStorageModeState] = useState(getStorageMode()); // 'server' | 'local'
 
+  const isNativePlatform = isNative();
+
+  const refreshStorageMode = async () => {
+    await initStorage();
+    setStorageModeState(getStorageMode());
+  };
+
   // Import operations state
   const [importing, setImporting] = useState(false);
   const [importSuccess, setImportSuccess] = useState('');
   const [importError, setImportError] = useState('');
   const [includeImages, setIncludeImages] = useState(true);
-
-  const importFileInputRef = useRef(null);
 
 
 
@@ -65,8 +72,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
 
       const converted = await localRecordsFromSync(data.bins, data.items);
 
-      const localBins = getLocalExportData().bins;
-      const localItems = getLocalExportData().items;
+      const { bins: localBins, items: localItems } = await getLocalExportData();
 
       // Merge: server records win on conflict (same id), append new ones
       const mergedBins = [
@@ -96,7 +102,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
     clearSyncFeedback();
     setSyncLoading(true);
     try {
-      const { bins, items } = getLocalExportData();
+      const { bins, items } = await getLocalExportData();
       const syncData = await localRecordsForSync(bins, items);
       const response = await fetch('/api/sync/push', {
         method: 'POST',
@@ -164,7 +170,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
     if (!trimmed) return;
 
     const token = cloudTokenInput.trim();
-    persistStorageMode('server');
+    await persistStorageMode('server');
     setStorageModeState('server');
     localStorage.setItem('cloud_server_url', trimmed);
     if (token) {
@@ -235,73 +241,88 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
   };
 
   // Toggle storage modes
-  const handleStorageModeChange = (mode) => {
-    if (confirm(`Switch storage database to ${mode === 'local' ? 'Local Browser Memory (Offline)' : 'Central SQLite Server'}? The page will reload.`)) {
-      persistStorageMode(mode);
+  const handleStorageModeChange = async (mode) => {
+    const label = mode === 'local' ? 'Local Browser Memory (Offline)' : 'Central SQLite Server';
+    if (confirm(`Switch storage database to ${label}? ${isNativePlatform ? 'This will refresh the app.' : 'The page will reload.'}`)) {
+      await persistStorageMode(mode);
       setStorageModeState(mode);
-      window.location.reload();
+      if (isNativePlatform) {
+        await refreshStorageMode();
+      } else {
+        window.location.reload();
+      }
     }
+  };
+
+  const generateExportZip = async () => {
+    const { bins, items } = await getLocalExportData();
+    const zip = new JSZip();
+    const usedSet = new Set();
+    const binMap = new Map(bins.map(b => [b.id, b]));
+
+    const exportImage = async (record) => {
+      if (!includeImages) return null;
+      const raw = record.image_url;
+      if (typeof raw !== 'string' || !raw) return null;
+      let blob = null;
+      if (isImageRef(raw)) {
+        blob = await getImageBlob(raw);
+      } else if (raw.startsWith('data:')) {
+        blob = dataURLToBlob(raw);
+      }
+      if (!blob) return null;
+      const bin = record.bin_id ? binMap.get(record.bin_id) : record;
+      const locSlug = slugify(bin?.location, 'unsorted-location');
+      const binSlug = slugify(bin?.name, bin?.id ?? 'unknown-bin');
+      const fileSlug = record.bin_id ? slugify(record.name, record.id) : 'bin';
+      const ext = EXT_FROM_TYPE[blob.type] || 'bin';
+      const base = `images/${locSlug}/${binSlug}/${fileSlug}.${ext}`;
+      const imagePath = planImagePath(base, usedSet);
+      zip.file(imagePath, blob);
+      return imagePath;
+    };
+
+    const rewrittenBins = [];
+    for (const bin of bins) {
+      const image_url = await exportImage(bin);
+      rewrittenBins.push({ ...bin, image_url });
+    }
+
+    const rewrittenItems = [];
+    for (const item of items) {
+      const image_url = await exportImage(item);
+      rewrittenItems.push({ ...item, image_url });
+    }
+
+    zip.file('inventory.json', JSON.stringify({
+      exported_at: new Date().toISOString(),
+      owner: 'dion',
+      image_layout: 'images/<location>/<bin>/<item>.*',
+      bins: rewrittenBins,
+      items: rewrittenItems
+    }, null, 2));
+
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    const filename = `smart_inventory_backup_${new Date().toISOString().slice(0, 10)}.zip`;
+    return { zipBlob, filename };
   };
 
   const handleLocalExport = async (e) => {
     e.preventDefault();
     try {
-      const { bins, items } = getLocalExportData();
-      const zip = new JSZip();
-      const usedSet = new Set();
-      const binMap = new Map(bins.map(b => [b.id, b]));
+      const { zipBlob, filename } = await generateExportZip();
+      await saveBackup(zipBlob, filename);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to generate local export file.');
+    }
+  };
 
-      const exportImage = async (record) => {
-        if (!includeImages) return null;
-        const raw = record.image_url;
-        if (typeof raw !== 'string' || !raw) return null;
-        let blob = null;
-        if (isImageRef(raw)) {
-          blob = await getImageBlob(raw);
-        } else if (raw.startsWith('data:')) {
-          blob = dataURLToBlob(raw);
-        }
-        if (!blob) return null;
-        const bin = record.bin_id ? binMap.get(record.bin_id) : record;
-        const locSlug = slugify(bin?.location, 'unsorted-location');
-        const binSlug = slugify(bin?.name, bin?.id ?? 'unknown-bin');
-        const fileSlug = record.bin_id ? slugify(record.name, record.id) : 'bin';
-        const ext = EXT_FROM_TYPE[blob.type] || 'bin';
-        const base = `images/${locSlug}/${binSlug}/${fileSlug}.${ext}`;
-        const imagePath = planImagePath(base, usedSet);
-        zip.file(imagePath, blob);
-        return imagePath;
-      };
-
-      const rewrittenBins = [];
-      for (const bin of bins) {
-        const image_url = await exportImage(bin);
-        rewrittenBins.push({ ...bin, image_url });
-      }
-
-      const rewrittenItems = [];
-      for (const item of items) {
-        const image_url = await exportImage(item);
-        rewrittenItems.push({ ...item, image_url });
-      }
-
-      zip.file('inventory.json', JSON.stringify({
-        exported_at: new Date().toISOString(),
-        owner: 'dion',
-        image_layout: 'images/<location>/<bin>/<item>.*',
-        bins: rewrittenBins,
-        items: rewrittenItems
-      }, null, 2));
-
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(zipBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `smart_inventory_backup_${new Date().toISOString().slice(0, 10)}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+  const handleShareExport = async (e) => {
+    e.preventDefault();
+    try {
+      const { zipBlob, filename } = await generateExportZip();
+      await shareBackup(zipBlob, filename);
     } catch (err) {
       console.error(err);
       alert('Failed to generate local export file.');
@@ -309,8 +330,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
   };
 
   // Import file processing flow
-  const handleImportFile = async (e) => {
-    const file = e.target.files[0];
+  const handleImportFile = async (file, fileBuffer) => {
     if (!file) return;
 
     setImporting(true);
@@ -322,7 +342,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
 
       if (fileName.endsWith('.zip')) {
         if (storageMode === 'local') {
-          const arrayBuffer = await file.arrayBuffer();
+          const arrayBuffer = fileBuffer ?? await file.arrayBuffer();
           const zip = await JSZip.loadAsync(arrayBuffer);
           const inventoryFile = zip.file('inventory.json');
           if (!inventoryFile) {
@@ -347,8 +367,13 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
           const bins = await Promise.all(parsed.bins.map(convertImageUrl));
           const items = await Promise.all(parsed.items.map(convertImageUrl));
           await restoreLocalData({ bins, items });
-          setImportSuccess('Offline local backup restored successfully! Reloading...');
-          setTimeout(() => window.location.reload(), 1500);
+          if (isNativePlatform) {
+            await refreshStorageMode();
+            setImportSuccess('Offline local backup restored successfully.');
+          } else {
+            setImportSuccess('Offline local backup restored successfully! Reloading...');
+            setTimeout(() => window.location.reload(), 1500);
+          }
           return;
         }
 
@@ -363,8 +388,13 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
         if (!data.success) {
           throw new Error(data.message || 'Zip archive restore failed.');
         }
-        setImportSuccess('Backup archive restored successfully! Reloading...');
-        setTimeout(() => window.location.reload(), 1500);
+        if (isNativePlatform) {
+          await refreshStorageMode();
+          setImportSuccess('Backup archive restored successfully.');
+        } else {
+          setImportSuccess('Backup archive restored successfully! Reloading...');
+          setTimeout(() => window.location.reload(), 1500);
+        }
 
       } else if (fileName.endsWith('.db')) {
         if (storageMode === 'local') {
@@ -383,8 +413,13 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
         if (!data.success) {
           throw new Error(data.message || 'SQLite database restore failed.');
         }
-        setImportSuccess('Central SQLite database restored successfully! Reloading...');
-        setTimeout(() => window.location.reload(), 1500);
+        if (isNativePlatform) {
+          await refreshStorageMode();
+          setImportSuccess('Central SQLite database restored successfully.');
+        } else {
+          setImportSuccess('Central SQLite database restored successfully! Reloading...');
+          setTimeout(() => window.location.reload(), 1500);
+        }
 
       } else if (fileName.endsWith('.json')) {
         if (storageMode === 'local') {
@@ -393,8 +428,13 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
             try {
               const parsed = JSON.parse(event.target.result);
               await restoreLocalData(parsed);
-              setImportSuccess('Offline local backup restored successfully! Reloading...');
-              setTimeout(() => window.location.reload(), 1500);
+              if (isNativePlatform) {
+                await refreshStorageMode();
+                setImportSuccess('Offline local backup restored successfully.');
+              } else {
+                setImportSuccess('Offline local backup restored successfully! Reloading...');
+                setTimeout(() => window.location.reload(), 1500);
+              }
             } catch (err) {
               setImportError('Invalid JSON format. Check backup file contents.');
               setImporting(false);
@@ -414,8 +454,13 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
           if (!data.success) {
             throw new Error(data.message || 'JSON backup restoration failed.');
           }
-          setImportSuccess('Central database restored from JSON successfully! Reloading...');
-          setTimeout(() => window.location.reload(), 1500);
+          if (isNativePlatform) {
+            await refreshStorageMode();
+            setImportSuccess('Central database restored from JSON successfully.');
+          } else {
+            setImportSuccess('Central database restored from JSON successfully! Reloading...');
+            setTimeout(() => window.location.reload(), 1500);
+          }
         }
       } else {
         throw new Error('Unsupported backup format. Please select a .zip, .db, or .json file.');
@@ -425,19 +470,30 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
       setImportError(err.message || 'Data restoration failed.');
     } finally {
       setImporting(false);
-      e.target.value = ''; // Reset file input
     }
   };
 
-  const triggerImportFilePicker = () => {
-    if (importFileInputRef.current) {
-      importFileInputRef.current.click();
+  const triggerImportFilePicker = async () => {
+    setImporting(true);
+    setImportError('');
+    setImportSuccess('');
+    try {
+      const result = await pickBackup();
+      if (!result) {
+        setImporting(false);
+        return;
+      }
+      await handleImportFile(result.file, result.arrayBuffer);
+    } catch (err) {
+      console.error(err);
+      setImportError(err.message || 'Failed to pick backup file.');
+      setImporting(false);
     }
   };
 
   return (
     <div className="w-full max-w-md mx-auto py-6 px-4 space-y-6">
-      {/* 1. DATABASE & STORAGE MODE + CLOUD SYNC */}
+      {!isNativePlatform && (
       <section className="space-y-6">
         
         <div className="flex items-center gap-3 mb-6">
@@ -593,6 +649,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
           </div>
         )}
       </section>
+      )}
 
       <hr className="border-slate-800/60" />
 
@@ -734,21 +791,40 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
                   <Download className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-200 transition-colors" />
                 </a>
               ) : (
-                <button
-                  onClick={handleLocalExport}
-                  className="p-3 rounded-xl glass-card border border-slate-800/60 flex items-center justify-between hover:border-pink-500/30 transition-all text-left group cursor-pointer w-full sm:col-span-2"
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 bg-pink-500/10 rounded-lg text-pink-400">
-                      <FileJson className="w-4 h-4" />
+                <>
+                  <button
+                    onClick={handleLocalExport}
+                    className="p-3 rounded-xl glass-card border border-slate-800/60 flex items-center justify-between hover:border-pink-500/30 transition-all text-left group cursor-pointer w-full"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 bg-pink-500/10 rounded-lg text-pink-400">
+                        <Download className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="block text-xs font-bold text-slate-200 group-hover:text-pink-300">Save As (.zip)</span>
+                        <span className="block text-[9px] text-slate-500">Choose download location</span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="block text-xs font-bold text-slate-200 group-hover:text-pink-300">ZIP Export</span>
-                      <span className="block text-[9px] text-slate-500">Local browser export</span>
-                    </div>
-                  </div>
-                  <Download className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-200 transition-colors" />
-                </button>
+                    <Download className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-200 transition-colors" />
+                  </button>
+                  {isNativePlatform && (
+                    <button
+                      onClick={handleShareExport}
+                      className="p-3 rounded-xl glass-card border border-slate-800/60 flex items-center justify-between hover:border-purple-500/30 transition-all text-left group cursor-pointer w-full"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 bg-purple-500/10 rounded-lg text-purple-400">
+                          <Share2 className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="block text-xs font-bold text-slate-200 group-hover:text-purple-300">Share (.zip)</span>
+                          <span className="block text-[9px] text-slate-500">Send to another app</span>
+                        </div>
+                      </div>
+                      <Share2 className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-200 transition-colors" />
+                    </button>
+                  )}
+                </>
               )}
             </div>
 
@@ -785,14 +861,6 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
           <div className="space-y-3 pt-3 border-t border-slate-800/50">
             <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Import Backups</span>
             
-            <input 
-              type="file" 
-              accept=".db,.json,.zip" 
-              ref={importFileInputRef}
-              onChange={handleImportFile}
-              className="hidden"
-            />
-
             <button
               onClick={triggerImportFilePicker}
               disabled={importing}
@@ -860,7 +928,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
 
 
       {/* DELETE-UNREFERENCED DANGER MODAL */}
-      {modalTypes?.includes('settings-warning') && (
+      {!isNativePlatform && modalTypes?.includes('settings-warning') && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm pointer-events-auto">
           <div className="glass-panel w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-red-500/20 space-y-5 relative">
             <button
@@ -909,7 +977,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
       )}
 
       {/* CLOUD SERVER CONFIGURATION MODAL */}
-      {modalTypes?.includes('settings-cloud') && (
+      {!isNativePlatform && modalTypes?.includes('settings-cloud') && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm pointer-events-auto"
           onClick={handleCloudCancel}

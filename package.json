@@ -6,7 +6,8 @@
   "scripts": {
     "prepare": "husky",
     "test": "npm --prefix client test && npm --prefix server test",
-    "lint": "npm --prefix client run lint"
+    "lint": "npm --prefix client run lint",
+    "android:build": "npm run --prefix client android:build"
   },
   "devDependencies": {
     "husky": "^9.1.7"

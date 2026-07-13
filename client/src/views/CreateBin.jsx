@@ -285,7 +285,17 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
       <div className="w-full max-w-md mx-auto py-6 px-4 space-y-6 relative overflow-hidden">
         {/* Confetti-like glow */}
         <div className="absolute -top-24 -right-24 w-48 h-48 bg-emerald-600/10 rounded-full blur-3xl"></div>
-        
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => onBack()}
+            className="p-2 -ml-1 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+            aria-label="Back to Search"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+        </div>
+
         <div className="space-y-2">
           <div className="p-3 bg-emerald-500/10 rounded-full text-emerald-400 w-fit mx-auto mb-2">
             <CheckCircle2 className="w-8 h-8" />

@@ -85,6 +85,64 @@ docker pull ghcr.io/nag-sh/smart-qr:latest
 
 Images are private, matching the private repository.
 
+## Android (local build)
+
+The client can also be packaged as an Android app using [Capacitor](https://capacitorjs.com/).
+
+### Prerequisites
+
+- [Android Studio](https://developer.android.com/studio) (latest stable)
+- JDK 17+
+- Android SDK with `cmdline-tools` and a recent platform / build-tools (set `ANDROID_HOME`)
+
+### Build commands
+
+One-shot debug build from the repo root:
+
+```bash
+npm run --prefix client android:build
+```
+
+This runs:
+
+1. `npm run build:mobile` — build the client with `vite.mobile.config.js` (base `./`)
+2. `cap sync android` — copy the web bundle into `client/android`
+3. `cd android && ./gradlew assembleDebug` — produce a debug APK
+
+Other useful scripts (run from `client/` or via `npm --prefix client`):
+
+```bash
+npm run android:sync   # build mobile + cap sync android
+npm run android:open   # sync and open the project in Android Studio
+```
+
+### Release signing
+
+Generate a release keystore once and store it securely (do not commit it):
+
+```bash
+keytool -genkey -v -keystore smartqr-release.keystore -alias smartqr -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Base64-encode the keystore for use in CI:
+
+```bash
+base64 -w 0 smartqr-release.keystore > smartqr-release.keystore.b64
+```
+
+### GitHub Secrets for release workflow
+
+The GitHub Actions release workflow expects the following repository secrets:
+
+- `KEYSTORE_BASE64` — base64-encoded release keystore
+- `KEYSTORE_PASSWORD` — keystore password
+- `KEY_ALIAS` — key alias (e.g., `smartqr`)
+- `KEY_PASSWORD` — key password
+
+Set these in **Settings → Secrets and variables → Actions** before running a release workflow that signs an APK/AAB.
+
+Pushing a Git tag matching `v*` (for example `git tag v1.2.3 && git push origin v1.2.3`) triggers `.github/workflows/android-release.yml`, which builds the signed release APK and attaches it to a GitHub release for that tag.
+
 ## Data & persistence
 
 - `server/inventory.db*` — SQLite database (runtime; not committed)

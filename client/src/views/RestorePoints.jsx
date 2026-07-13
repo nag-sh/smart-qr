@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   History, RotateCcw, Clock, Plus, RefreshCw, CheckCircle2, AlertTriangle,
-  Box, Package, ArrowLeft
+  Box, Package, ArrowLeft, GitBranch, Check, Layers, Info, Pencil, Trash2
 } from 'lucide-react';
 import {
   getAuditLog, restoreAuditEntry, cherryPickAuditEntry, restoreSelectedChanges
@@ -59,6 +59,15 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
     if (op.startsWith('IMPORT_') || op.startsWith('SYNC_')) return 'bg-amber-500/10 border-amber-500/35 text-amber-400';
     if (op === 'RESTORE') return 'bg-purple-500/10 border-purple-500/35 text-purple-400';
     return 'bg-slate-500/10 border-slate-500/35 text-slate-400';
+  };
+
+  const getOperationIcon = (op) => {
+    if (op.startsWith('CREATE_')) return <Plus className="w-3.5 h-3.5" />;
+    if (op.startsWith('EDIT_')) return <Pencil className="w-3.5 h-3.5" />;
+    if (op.startsWith('DELETE_')) return <Trash2 className="w-3.5 h-3.5" />;
+    if (op.startsWith('IMPORT_') || op.startsWith('SYNC_')) return <RefreshCw className="w-3.5 h-3.5" />;
+    if (op === 'RESTORE') return <RotateCcw className="w-3.5 h-3.5" />;
+    return <Layers className="w-3.5 h-3.5" />;
   };
 
   const getRelativeTime = (isoString) => {
@@ -212,59 +221,70 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
     }
   };
 
+  const sectionTitle = (key) => {
+    if (key === 'today') return 'Today';
+    if (key === 'thisWeek') return 'This Week';
+    return 'Older';
+  };
+
   const renderTimeline = () => {
     if (auditLoading) {
       return (
         <div className="py-8 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2">
           <RefreshCw className="w-6 h-6 animate-spin text-purple-500" />
-          <span>Retrieving restoration timeline...</span>
+          <span>Loading restore points...</span>
         </div>
       );
     }
 
     if (auditLog.length === 0) {
       return (
-        <div className="p-6 text-center text-xs text-slate-500 border border-dashed border-slate-800 rounded-2xl">
-          No restore checkpoints registered yet. Complete edits, creations or imports to write historical checkpoints.
+        <div className="p-5 flex flex-col items-center gap-3 text-center border border-dashed border-slate-800 rounded-2xl">
+          <Layers className="w-8 h-8 text-slate-600" />
+          <div className="space-y-0.5">
+            <p className="text-xs font-bold text-slate-400">No checkpoints yet</p>
+            <p className="text-[10px] text-slate-500 leading-normal">Edits, imports, and syncs create restore points.</p>
+          </div>
         </div>
       );
     }
 
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         {Object.entries(groupAuditByTime(auditLog)).map(([key, list]) => {
           if (list.length === 0) return null;
           return (
-            <div key={key} className="space-y-3">
-              <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                {key === 'today' ? 'Today' : key === 'thisWeek' ? 'This Week' : 'Older Points'}
-              </span>
-              <div className="space-y-2.5">
+            <div key={key} className="space-y-2">
+              <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                <Clock className="w-3 h-3" />
+                {sectionTitle(key)}
+              </div>
+              <div className="space-y-2">
                 {list.map(entry => (
                   <div
                     key={entry.id}
                     onClick={() => { setSelectedAuditEntry(entry); onNavigate('restore-details'); }}
-                    className={`p-3 bg-slate-900/40 border rounded-xl flex items-center justify-between gap-4 hover:bg-slate-900/65 hover:border-purple-500/30 transition-all cursor-pointer ${
+                    className={`p-2.5 bg-slate-900/40 border rounded-xl hover:bg-slate-900/65 hover:border-purple-500/30 transition-all cursor-pointer ${
                       selectedChangesToRestore.has(entry.id) ? 'border-purple-500 bg-purple-950/10' : 'border-slate-800/60'
                     }`}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center gap-2.5">
                       <input
                         type="checkbox"
                         checked={selectedChangesToRestore.has(entry.id)}
                         onClick={(e) => e.stopPropagation()}
                         onChange={() => toggleSelectChange(entry.id)}
-                        className="rounded border-slate-700 bg-slate-900 text-purple-650 focus:ring-0 cursor-pointer h-4 w-4 shrink-0"
+                        className="rounded border-slate-700 bg-slate-900 text-purple-600 focus:ring-0 cursor-pointer h-4 w-4 shrink-0"
                         title="Select this change for selective restore"
                       />
                       <span className={`p-1.5 border rounded-lg shrink-0 ${getOperationColor(entry.operation)}`}>
-                        <Clock className="w-3.5 h-3.5" />
+                        {getOperationIcon(entry.operation)}
                       </span>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <span className="block text-xs font-bold text-slate-200 truncate">{entry.description}</span>
                         <div className="flex items-center gap-1.5 mt-0.5">
+                          <Clock className="w-3 h-3 text-slate-600" />
                           <span className="text-[10px] text-slate-500 font-mono leading-none">{getRelativeTime(entry.created_at)}</span>
-                          <span className="h-2 w-px bg-slate-800"></span>
                           <span className={`text-[8px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider leading-none ${
                             entry.granularity === 'weekly'
                               ? 'bg-purple-500/10 text-purple-300'
@@ -278,17 +298,17 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
                       </div>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex items-center gap-2 mt-2 ml-7">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleStartCherryPick(entry);
                           onNavigate('restore-cherry');
                         }}
-                        className="py-1.5 px-2.5 rounded-lg border border-slate-800 bg-slate-950/60 hover:bg-purple-600/10 hover:border-purple-500/20 text-[10px] font-bold text-slate-300 hover:text-purple-300 flex items-center gap-1 cursor-pointer transition-all shrink-0"
-                        title="Cherry-pick specific bins/items instead of full overwrite"
+                        className="flex-1 py-1.5 px-2 rounded-lg border border-slate-800 bg-slate-950/60 hover:bg-purple-600/10 hover:border-purple-500/20 text-[10px] font-bold text-slate-300 hover:text-purple-300 flex items-center justify-center gap-1 cursor-pointer transition-all"
+                        title="Cherry-pick specific bins/items"
                       >
-                        <Plus className="w-3 h-3 text-purple-400" />
+                        <GitBranch className="w-3 h-3 text-purple-400" />
                         Cherry-Pick
                       </button>
                       <button
@@ -298,11 +318,11 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
                           setCherryPickMode(false);
                           onNavigate('restore-revert');
                         }}
-                        className="py-1.5 px-2.5 rounded-lg border border-slate-700 hover:bg-slate-800 text-[10px] font-bold text-slate-300 flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0"
-                        title="Overwrite entire database to match this checkpoint"
+                        className="flex-1 py-1.5 px-2 rounded-lg border border-slate-700 hover:bg-slate-800 text-[10px] font-bold text-slate-300 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95"
+                        title="Overwrite entire database to this checkpoint"
                       >
                         <RotateCcw className="w-3 h-3 text-slate-400" />
-                        Revert All
+                        Revert
                       </button>
                     </div>
                   </div>
@@ -316,9 +336,9 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
   };
 
   return (
-    <div className="w-full max-w-md mx-auto py-6 px-4 space-y-6 relative overflow-hidden">
+    <div className="w-full max-w-md mx-auto py-4 px-3 space-y-4 relative overflow-hidden">
       {/* Header with back button */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5">
         <button
           onClick={() => onBack()}
           className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
@@ -326,13 +346,13 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <div className="flex-1 flex items-center gap-3">
-          <div className="p-3 bg-purple-500/10 rounded-xl text-purple-400">
-            <History className="w-6 h-6" />
+        <div className="flex-1 flex items-center gap-2.5">
+          <div className="p-2.5 bg-purple-500/10 rounded-xl text-purple-400">
+            <History className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight">Restore Points</h1>
-            <p className="text-xs text-slate-400">Roll back database state or cherry-pick specific changes</p>
+            <h1 className="text-lg font-bold tracking-tight">Restore Points</h1>
+            <p className="text-[10px] text-slate-400">Rollback or cherry-pick checkpoints</p>
           </div>
         </div>
       </div>
@@ -358,10 +378,10 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
       {/* Restore / Cherry-pick confirmation modal */}
       {(modalTypes?.includes('restore-revert') || modalTypes?.includes('restore-cherry')) && restoreTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm pointer-events-auto">
-          <div className={`glass-panel w-full ${cherryPickMode ? 'max-w-2xl' : 'max-w-sm'} rounded-3xl p-6 shadow-2xl border border-purple-500/20 space-y-5 relative max-h-[90vh] flex flex-col justify-between`}>
+          <div className={`glass-panel w-full ${cherryPickMode ? 'max-w-2xl' : 'max-w-sm'} rounded-3xl p-5 shadow-2xl border border-purple-500/20 space-y-4 relative max-h-[90vh] flex flex-col justify-between`}>
             <button
               onClick={() => { if (!restoring) { onBack(); } }}
-              className="absolute top-4 left-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              className="absolute top-3 left-3 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
               aria-label="Back"
               disabled={restoring}
             >
@@ -369,21 +389,21 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
             </button>
 
             {cherryPickMode ? (
-              <div className="flex-1 flex flex-col overflow-hidden space-y-4">
-                <div className="space-y-1 shrink-0">
-                  <h2 className="text-base font-bold text-slate-200 flex items-center gap-2">
-                    <Plus className="w-5 h-5 text-purple-400" />
-                    Cherry-Pick Checkpoint Records
-                  </h2>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    Select the individual bins and items from the checkpoint to restore. Existing matches on the matching ID will be updated.
+              <div className="flex-1 flex flex-col overflow-hidden space-y-3">
+                <div className="space-y-1 shrink-0 text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    <GitBranch className="w-5 h-5 text-purple-400" />
+                    <h2 className="text-base font-bold text-slate-200">Cherry-Pick</h2>
+                  </div>
+                  <p className="text-[10px] text-slate-400 leading-normal">
+                    Select bins/items to restore from this checkpoint.
                   </p>
                 </div>
 
-                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 overflow-hidden min-h-[250px]">
+                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3 overflow-hidden min-h-[220px]">
                   {/* Bins list */}
                   <div className="flex flex-col border border-slate-800 rounded-2xl overflow-hidden bg-slate-950/30">
-                    <div className="p-3 bg-slate-900/50 border-b border-slate-800 flex items-center justify-between">
+                    <div className="p-2.5 bg-slate-900/50 border-b border-slate-800 flex items-center justify-between">
                       <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
                         <Box className="w-3.5 h-3.5 text-purple-400" /> Bins ({cherryPickBins.length})
                       </span>
@@ -398,9 +418,9 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
                         {selectedBinsToPick.size === cherryPickBins.length ? 'Deselect All' : 'Select All'}
                       </button>
                     </div>
-                    <div className="flex-1 p-2 space-y-1.5 overflow-y-auto max-h-56">
+                    <div className="flex-1 p-2 space-y-1 overflow-y-auto max-h-52">
                       {cherryPickBins.length === 0 ? (
-                        <div className="text-[10px] text-slate-600 p-4 text-center">No bins inside checkpoint.</div>
+                        <div className="text-[10px] text-slate-600 p-3 text-center">No bins in checkpoint.</div>
                       ) : (
                         cherryPickBins.map(bin => (
                           <label key={bin.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-slate-900/50 cursor-pointer select-none">
@@ -424,7 +444,7 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
 
                   {/* Items list */}
                   <div className="flex flex-col border border-slate-800 rounded-2xl overflow-hidden bg-slate-950/30">
-                    <div className="p-3 bg-slate-900/50 border-b border-slate-800 flex items-center justify-between">
+                    <div className="p-2.5 bg-slate-900/50 border-b border-slate-800 flex items-center justify-between">
                       <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
                         <Package className="w-3.5 h-3.5 text-pink-400" /> Items ({cherryPickItems.length})
                       </span>
@@ -439,9 +459,9 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
                         {selectedItemsToPick.size === cherryPickItems.length ? 'Deselect All' : 'Select All'}
                       </button>
                     </div>
-                    <div className="flex-1 p-2 space-y-1.5 overflow-y-auto max-h-56">
+                    <div className="flex-1 p-2 space-y-1 overflow-y-auto max-h-52">
                       {cherryPickItems.length === 0 ? (
-                        <div className="text-[10px] text-slate-600 p-4 text-center">No items inside checkpoint.</div>
+                        <div className="text-[10px] text-slate-600 p-3 text-center">No items in checkpoint.</div>
                       ) : (
                         cherryPickItems.map(item => (
                           <label key={item.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-slate-900/50 cursor-pointer select-none">
@@ -467,30 +487,33 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
             ) : (
               <div className="text-center space-y-3 shrink-0">
                 <div className="p-3 bg-purple-500/15 rounded-full w-fit mx-auto">
-                  <RotateCcw className="w-8 h-8 text-purple-400 animate-pulse" />
+                  <RotateCcw className="w-8 h-8 text-purple-400" />
                 </div>
-                <h2 className="text-base font-bold text-slate-200">Restore Point Checkpoint</h2>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  You are rolling back the entire inventory system to:
-                  <strong className="block text-slate-200 mt-1 font-bold">"{restoreTarget.description}"</strong>
-                </p>
-                <div className="bg-red-500/10 border border-red-500/25 rounded-xl p-3 flex gap-2 text-[11px] text-red-300 text-left">
-                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-red-400" />
-                  <span>
-                    <strong>Warning:</strong> This will overwrite all modifications made since this checkpoint.
-                  </span>
+                <div className="space-y-1">
+                  <h2 className="text-base font-bold text-slate-200">Restore Checkpoint</h2>
+                  <p className="text-xs text-slate-300 truncate px-2">"{restoreTarget.description}"</p>
+                  <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-500">
+                    <Clock className="w-3 h-3" />
+                    {getRelativeTime(restoreTarget.created_at)}
+                  </div>
+                </div>
+                <div className="bg-red-500/10 border border-red-500/25 rounded-xl p-3 flex items-center gap-2 text-[11px] text-red-300 text-left">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-red-400" />
+                  <span>Overwrites all changes since this point.</span>
                 </div>
               </div>
             )}
 
             <div className="space-y-3 shrink-0 pt-2 border-t border-slate-800">
               {restoreSuccess && (
-                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-center text-xs text-emerald-300">
+                <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center gap-2 text-xs text-emerald-300">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
                   {restoreSuccess}
                 </div>
               )}
               {restoreError && (
-                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-center text-xs text-red-300 font-bold">
+                <div className="p-2.5 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-2 text-xs text-red-300 font-bold">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
                   {restoreError}
                 </div>
               )}
@@ -508,8 +531,8 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
                     disabled={restoring || (selectedBinsToPick.size === 0 && selectedItemsToPick.size === 0)}
                     className="flex-1 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all"
                   >
-                    {restoring ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                    Apply Cherry-Pick ({selectedBinsToPick.size + selectedItemsToPick.size})
+                    {restoring ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                    Apply ({selectedBinsToPick.size + selectedItemsToPick.size})
                   </button>
                 ) : (
                   <button
@@ -530,10 +553,10 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
       {/* Multi-change cherry-pick restore modal */}
       {modalTypes?.includes('restore-multi') && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm pointer-events-auto">
-          <div className="glass-panel w-full max-w-md rounded-3xl p-6 shadow-2xl border border-purple-500/20 space-y-5 relative max-h-[90vh] flex flex-col justify-between">
+          <div className="glass-panel w-full max-w-sm rounded-3xl p-5 shadow-2xl border border-purple-500/20 space-y-4 relative max-h-[90vh] flex flex-col justify-between">
             <button
               onClick={() => { if (!restoring) onBack(); }}
-              className="absolute top-4 left-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              className="absolute top-3 left-3 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
               aria-label="Back"
               disabled={restoring}
             >
@@ -542,17 +565,17 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
 
             <div className="text-center space-y-3 shrink-0">
               <div className="p-3 bg-purple-500/15 rounded-full w-fit mx-auto">
-                <RotateCcw className="w-8 h-8 text-purple-400 animate-pulse" />
+                <RotateCcw className="w-8 h-8 text-purple-400" />
               </div>
-              <h2 className="text-base font-bold text-slate-200">Cherry-Pick Restore</h2>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                You are about to selectively restore <strong className="text-slate-200">{selectedChangesToRestore.size}</strong> selected changes. Intermediate changes will not be affected.
-              </p>
+              <div className="space-y-1">
+                <h2 className="text-base font-bold text-slate-200">Restore {selectedChangesToRestore.size} Selected</h2>
+                <p className="text-[10px] text-slate-400 leading-normal">Intermediate changes are preserved.</p>
+              </div>
             </div>
 
             {multiRestoreConflicts.length > 0 ? (
-              <div className="bg-red-500/10 border border-red-500/25 rounded-xl p-3 flex flex-col gap-1.5 text-xs text-red-300 max-h-48 overflow-y-auto">
-                <span className="font-bold flex items-center gap-1">
+              <div className="bg-red-500/10 border border-red-500/25 rounded-xl p-3 flex flex-col gap-1.5 max-h-44 overflow-y-auto">
+                <span className="text-xs font-bold flex items-center gap-1 text-red-300">
                   <AlertTriangle className="w-4 h-4 text-red-400" />
                   Conflicts blocked restoration:
                 </span>
@@ -563,20 +586,22 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
                 </ul>
               </div>
             ) : (
-              <div className="bg-emerald-500/10 border border-emerald-500/25 rounded-xl p-3 flex gap-2 text-xs text-emerald-300 shrink-0">
+              <div className="bg-emerald-500/10 border border-emerald-500/25 rounded-xl p-3 flex items-center gap-2 text-xs text-emerald-300 shrink-0">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>No conflict warnings detected. Changes will merge cleanly.</span>
+                <span>No conflicts detected.</span>
               </div>
             )}
 
             <div className="space-y-3 shrink-0 pt-2 border-t border-slate-800">
               {restoreSuccess && (
-                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-center text-xs text-emerald-300">
+                <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center gap-2 text-xs text-emerald-300">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
                   {restoreSuccess}
                 </div>
               )}
               {restoreError && !multiRestoreConflicts.length && (
-                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-center text-xs text-red-300 font-bold">
+                <div className="p-2.5 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-2 text-xs text-red-300 font-bold">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
                   {restoreError}
                 </div>
               )}
@@ -595,8 +620,8 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
                   disabled={restoring || multiRestoreConflicts.length > 0}
                   className="flex-1 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all"
                 >
-                  {restoring ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
-                  Confirm Restore
+                  {restoring ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  Confirm
                 </button>
               </div>
             </div>
@@ -609,35 +634,40 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in pointer-events-auto">
           <div className="glass-panel w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl border border-purple-500/20 flex flex-col max-h-[85vh]">
             {/* Header */}
-            <div className="p-6 border-b border-slate-800/60 bg-gradient-to-b from-purple-950/20 to-transparent flex items-start justify-between">
+            <div className="p-4 border-b border-slate-800/60 bg-gradient-to-b from-purple-950/20 to-transparent flex items-center gap-3">
               <button
                 onClick={() => onBack()}
-                className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+                className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer shrink-0"
                 aria-label="Back"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
-              <div>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider ${getOperationColor(selectedAuditEntry.operation)}`}>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className={`px-1.5 py-0.5 rounded text-[9px] uppercase font-bold tracking-wider flex items-center gap-0.5 ${getOperationColor(selectedAuditEntry.operation)}`}>
+                    {getOperationIcon(selectedAuditEntry.operation)}
                     {selectedAuditEntry.operation}
                   </span>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">
                     {selectedAuditEntry.granularity}
                   </span>
                 </div>
-                <h2 className="text-lg font-bold text-slate-100">{selectedAuditEntry.description}</h2>
-                <p className="text-xs text-slate-400 mt-1 font-mono">
+                <h2 className="text-base font-bold text-slate-100 truncate">{selectedAuditEntry.description}</h2>
+                <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mt-0.5 font-mono">
+                  <Clock className="w-3 h-3" />
                   {new Date(selectedAuditEntry.created_at).toLocaleString()}
-                </p>
+                </div>
               </div>
             </div>
 
             {/* Scrollable body */}
-            <div className="p-6 overflow-y-auto space-y-6 flex-1">
+            <div className="p-4 overflow-y-auto space-y-5 flex-1">
               {/* Affected entities diff pane */}
-              <div className="space-y-3">
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Affected Entities</h3>
+              <div className="space-y-2">
+                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Layers className="w-3 h-3" />
+                  Affected
+                </h3>
                 {(() => {
                   const currentLogIndex = auditLog.findIndex(e => e.id === selectedAuditEntry.id);
                   const predecessor = currentLogIndex + 1 < auditLog.length ? auditLog[currentLogIndex + 1] : null;
@@ -645,29 +675,30 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
 
                   if (affected.length === 0) {
                     return (
-                      <div className="p-4 bg-slate-950/40 rounded-xl border border-slate-800 text-xs text-slate-500 italic">
-                        No schema mutations (no additions/deletions/edits) detected.
+                      <div className="p-3 flex items-center gap-2 bg-slate-950/40 rounded-xl border border-slate-800 text-[10px] text-slate-500">
+                        <Info className="w-3.5 h-3.5 shrink-0" />
+                        No schema mutations detected.
                       </div>
                     );
                   }
 
                   return (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-2">
                       {affected.map((ent, idx) => (
                         <div
                           key={idx}
-                          className="p-3 bg-slate-950/40 border border-slate-800 rounded-xl flex items-center gap-3"
+                          className="p-2 bg-slate-950/40 border border-slate-800 rounded-xl flex items-center gap-2.5"
                         >
-                          <div className="w-12 h-12 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center overflow-hidden shrink-0">
+                          <div className="w-9 h-9 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center overflow-hidden shrink-0">
                             {ent.image_url ? (
                               <AffectedImage url={ent.image_url} name={ent.name} />
                             ) : ent.type === 'bin' ? (
-                              <Box className="w-5 h-5 text-slate-700 stroke-1" />
+                              <Box className="w-4 h-4 text-slate-700 stroke-1" />
                             ) : (
-                              <Package className="w-5 h-5 text-slate-700 stroke-1" />
+                              <Package className="w-4 h-4 text-slate-700 stroke-1" />
                             )}
                           </div>
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <span className="block text-xs font-bold text-slate-200 truncate">{ent.name}</span>
                             <div className="flex items-center gap-1.5 mt-0.5">
                               <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase leading-none ${
@@ -695,9 +726,12 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
               </div>
 
               {/* Surrounding entries (10-minute window) */}
-              <div className="space-y-3 border-t border-slate-800/40 pt-5">
+              <div className="space-y-2 border-t border-slate-800/40 pt-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Surrounding Activity (10m window)</h3>
+                  <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="w-3 h-3" />
+                    Nearby Activity
+                  </h3>
                   {(() => {
                     const currentLogTime = new Date(selectedAuditEntry.created_at).getTime();
                     const surrounding = auditLog.filter(other => {
@@ -707,7 +741,7 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
                     });
                     return (
                       <span className="text-[10px] text-slate-500 font-medium">
-                        {surrounding.length} other changes
+                        {surrounding.length} changes
                       </span>
                     );
                   })()}
@@ -723,23 +757,24 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
 
                   if (surrounding.length === 0) {
                     return (
-                      <div className="p-4 bg-slate-950/20 border border-slate-800/60 rounded-xl text-xs text-slate-500 italic">
-                        No other actions were captured in the 10 minutes before or after this entry.
+                      <div className="p-3 flex items-center gap-2 bg-slate-950/20 border border-slate-800/60 rounded-xl text-[10px] text-slate-500">
+                        <Info className="w-3.5 h-3.5 shrink-0" />
+                        No other activity within 10 minutes.
                       </div>
                     );
                   }
 
                   return (
-                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                    <div className="space-y-1.5 max-h-44 overflow-y-auto">
                       {surrounding.map(other => (
                         <div
                           key={other.id}
                           onClick={() => setSelectedAuditEntry(other)}
-                          className="p-2.5 bg-slate-900/30 border border-slate-800 hover:border-slate-700 rounded-xl flex items-center justify-between gap-3 cursor-pointer transition-colors"
+                          className="p-2 bg-slate-900/30 border border-slate-800 hover:border-slate-700 rounded-xl flex items-center justify-between gap-2 cursor-pointer transition-colors"
                         >
-                          <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="flex items-center gap-2 min-w-0">
                             <span className={`p-1 border rounded-md shrink-0 ${getOperationColor(other.operation)}`}>
-                              <Clock className="w-3 h-3" />
+                              {getOperationIcon(other.operation)}
                             </span>
                             <span className="text-xs text-slate-300 truncate font-semibold">{other.description}</span>
                           </div>
@@ -755,19 +790,19 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
             </div>
 
             {/* Footer actions */}
-            <div className="p-6 bg-slate-950/40 border-t border-slate-800/60 flex items-center justify-between gap-3 shrink-0">
+            <div className="p-4 bg-slate-950/40 border-t border-slate-800/60 flex items-center justify-between gap-2 shrink-0">
               <button
                 onClick={() => {
                   toggleSelectChange(selectedAuditEntry.id);
                   onBack();
                 }}
-                className={`py-2 px-3.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
                   selectedChangesToRestore.has(selectedAuditEntry.id)
                     ? 'bg-purple-600/20 border-purple-500/40 text-purple-300'
                     : 'border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800'
                 }`}
               >
-                {selectedChangesToRestore.has(selectedAuditEntry.id) ? 'Deselect Change' : 'Select for Restoration'}
+                {selectedChangesToRestore.has(selectedAuditEntry.id) ? 'Deselect' : 'Select'}
               </button>
 
               <div className="flex gap-2">
@@ -777,9 +812,9 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
                     setSelectedAuditEntry(null);
                     onNavigate('restore-cherry');
                   }}
-                  className="py-2 px-3.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/30 text-purple-300 font-bold text-xs cursor-pointer flex items-center gap-1.5 transition-colors"
+                  className="py-2 px-3 rounded-xl bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/30 text-purple-300 font-bold text-xs cursor-pointer flex items-center gap-1.5 transition-colors"
                 >
-                  <Plus className="w-3.5 h-3.5" /> Cherry-Pick
+                  <GitBranch className="w-3.5 h-3.5" /> Pick
                 </button>
                 <button
                   onClick={() => {
@@ -788,9 +823,9 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
                     setSelectedAuditEntry(null);
                     onNavigate('restore-revert');
                   }}
-                  className="py-2 px-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold text-xs cursor-pointer flex items-center gap-1.5 transition-colors"
+                  className="py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold text-xs cursor-pointer flex items-center gap-1.5 transition-colors"
                 >
-                  <RotateCcw className="w-3.5 h-3.5 text-slate-400" /> Revert All
+                  <RotateCcw className="w-3.5 h-3.5 text-slate-400" /> Revert
                 </button>
               </div>
             </div>
