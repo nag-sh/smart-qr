@@ -48,16 +48,44 @@ export const isLocalOnly = () => {
 };
 
 /**
- * Embed inventory metadata into a JPEG data URL using EXIF ImageDescription tag.
- * Only works on JPEG data URLs. Returns original if not JPEG or piexif fails.
+ * Convert an image data URL to a JPEG data URL via an offscreen canvas.
+ * Returns null if the source cannot be decoded. This lets non-JPEG uploads
+ * (PNG/WebP) be re-encoded to JPEG so they can carry EXIF metadata.
+ */
+function toJpegDataURL(srcDataUrl) {
+  return new Promise((resolve) => {
+    if (!srcDataUrl) return resolve(null);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        canvas.getContext('2d').drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/jpeg', 0.92));
+      } catch {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = srcDataUrl;
+  });
+}
+
+/**
+ * Embed inventory metadata into an image's EXIF ImageDescription tag.
+ * Forces JPEG output (piexifjs is JPEG-only) so PNG/WebP uploads also get
+ * metadata. Returns the original input if embedding is not possible.
  */
 async function embedLocalImageMetadata(input, metadata) {
   try {
     const wasBlob = input instanceof Blob;
     let dataURL = wasBlob ? await blobToDataURL(input) : input;
-    if (!dataURL || !dataURL.startsWith('data:image/jpeg')) {
-      return input;
+    if (!dataURL) return input;
+    if (!dataURL.startsWith('data:image/jpeg')) {
+      dataURL = await toJpegDataURL(dataURL);
     }
+    if (!dataURL) return input;
     const exifObj = { '0th': {}, 'Exif': {}, 'GPS': {}, '1st': {} };
     exifObj['0th'][piexif.ImageIFD.ImageDescription] = JSON.stringify(metadata);
     const exifBytes = piexif.dump(exifObj);
@@ -239,6 +267,7 @@ export async function createBin(qrId, name, location, imageFile) {
         entity_id: id,
         entity_name: name.trim(),
         qr_id: qrId,
+        location: location.trim(),
         created_at: new Date().toISOString()
       });
       image_url = await storeImage(processed);
@@ -303,6 +332,8 @@ export async function createItem(binId, name, description, searchTagsArray, visi
         entity_name: name.trim(),
         bin_id: binId,
         bin_name: parentBin.name,
+        location: parentBin.location,
+        qr_id: parentBin.qr_id,
         created_at: new Date().toISOString()
       });
       image_url = await storeImage(processed);
@@ -482,6 +513,7 @@ export async function updateBin(id, fields, imageFile = null) {
         entity_id: id,
         entity_name: (fields.name || bins[idx].name).trim(),
         qr_id: bins[idx].qr_id,
+        location: bins[idx].location,
         created_at: bins[idx].created_at
       });
       image_url = await storeImage(processed);
@@ -603,6 +635,9 @@ export async function updateItem(id, fields, imageFile = null) {
 
     let image_url = items[idx].image_url;
 
+    const localBins = getLocalTable('local_bins');
+    const parentBin = localBins.find(b => b.id === items[idx].bin_id);
+
     if (imageFile) {
       if (isImageRef(image_url)) {
         await deleteImage(image_url);
@@ -615,6 +650,9 @@ export async function updateItem(id, fields, imageFile = null) {
         entity_id: id,
         entity_name: (fields.name || items[idx].name).trim(),
         bin_id: items[idx].bin_id,
+        bin_name: parentBin ? parentBin.name : '',
+        location: parentBin ? parentBin.location : '',
+        qr_id: parentBin ? parentBin.qr_id : '',
         created_at: items[idx].created_at
       });
       image_url = await storeImage(processed);
