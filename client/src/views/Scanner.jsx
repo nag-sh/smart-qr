@@ -1,19 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
 import { Camera } from '@capacitor/camera';
 import { Camera as CameraIcon, CameraOff, QrCode, AlertCircle, ArrowRight, Keyboard, RefreshCw, ArrowLeft } from 'lucide-react';
 import { getBin } from '../services/storage';
 
-function dataURLtoFile(dataUrl, filename) {
-  const arr = dataUrl.split(',');
-  const mime = arr[0].match(/:(.*?);/)[1];
-  const bstr = atob(arr[1]);
-  const u8arr = new Uint8Array(bstr.length);
-  for (let i = 0; i < bstr.length; i++) {
-    u8arr[i] = bstr.charCodeAt(i);
-  }
-  return new File([u8arr], filename, { type: mime });
-}
+const decodeInterval = 200; // 5 fps decode; tunable
 
 export default function Scanner({ onNavigate, onBack }) {
   const [scanResult, setScanResult] = useState('');
@@ -22,13 +12,30 @@ export default function Scanner({ onNavigate, onBack }) {
   const [manualMode, setManualMode] = useState(false);
   const [manualQr, setManualQr] = useState('');
   const [loading, setLoading] = useState(false);
-  const html5QrCodeRef = useRef(null);
+
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const workerRef = useRef(null);
+  const streamRef = useRef(null);
+  const decodeTimerRef = useRef(null);
+  const decodeFrameRef = useRef(null);
   const startingRef = useRef(false);
+  const scanningRef = useRef(false);
+  const handleScanSuccessRef = useRef(handleScanSuccess);
+
+  handleScanSuccessRef.current = handleScanSuccess;
 
   useEffect(() => {
-    html5QrCodeRef.current = new Html5Qrcode('scanner-viewport');
+    workerRef.current = new Worker(new URL('../workers/qrWorker.js', import.meta.url), { type: 'module' });
+    workerRef.current.onmessage = (e) => {
+      if (scanningRef.current && e.data) {
+        handleScanSuccessRef.current(e.data);
+      }
+    };
     return () => {
-      stopScanner();
+      cleanupScanner();
+      workerRef.current?.terminate();
+      workerRef.current = null;
     };
   }, []);
 
@@ -40,64 +47,109 @@ export default function Scanner({ onNavigate, onBack }) {
     }
   }, [manualMode]);
 
+  function cleanupScanner() {
+    if (decodeTimerRef.current) {
+      clearTimeout(decodeTimerRef.current);
+      decodeTimerRef.current = null;
+    }
+    if (decodeFrameRef.current) {
+      cancelAnimationFrame(decodeFrameRef.current);
+      decodeFrameRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    scanningRef.current = false;
+  }
+
   const startScanner = async () => {
-    if (startingRef.current) return;
+    if (startingRef.current || !videoRef.current || !workerRef.current) return;
     startingRef.current = true;
+    cleanupScanner();
     setError('');
     setScanResult('');
     try {
-      const qr = html5QrCodeRef.current;
-      if (qr) {
-        if (qr.isScanning) {
-          await qr.stop();
-        }
-        await qr.start(
-          { facingMode: 'environment' },
-          {
-            fps: 10,
-            qrbox: (width, height) => {
-              const size = Math.min(width, height) * 0.65;
-              return { width: size, height: size };
-            },
-            videoConstraints: {
-              facingMode: 'environment',
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-              frameRate: { ideal: 30 },
-            },
-          },
-          (decodedText) => {
-            handleScanSuccess(decodedText);
-          },
-          () => {}
-        );
-        setIsScanning(true);
-      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'environment',
+          width: { ideal: 640, max: 640 },
+          height: { ideal: 480, max: 480 },
+          frameRate: { ideal: 30, min: 30 },
+        },
+        audio: false,
+      });
+      streamRef.current = stream;
+      videoRef.current.srcObject = stream;
+      await videoRef.current.play();
+      setIsScanning(true);
+      scanningRef.current = true;
+      scheduleDecode();
     } catch (err) {
-      console.error('Failed to start scanning:', err);
+      console.error('Failed to start camera:', err);
       setIsScanning(false);
       setError('Could not access camera. Please ensure camera permission is granted.');
-      try {
-        if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
-          await html5QrCodeRef.current.stop();
-        }
-      } catch (e) {
-        /* ignore reset errors */
-      }
     } finally {
       startingRef.current = false;
     }
   };
 
-  const stopScanner = async () => {
-    try {
-      if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
-        await html5QrCodeRef.current.stop();
-        setIsScanning(false);
+  const stopScanner = () => {
+    cleanupScanner();
+    setIsScanning(false);
+  };
+
+  const scheduleDecode = () => {
+    const capture = () => {
+      if (!scanningRef.current) return;
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (!video || !canvas || !workerRef.current || video.paused || video.ended) return;
+      if (video.readyState < 2) {
+        decodeFrameRef.current = requestAnimationFrame(capture);
+        return;
       }
-    } catch (err) {
-      console.error('Failed to stop scanning:', err);
-    }
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      canvas.width = vw;
+      canvas.height = vh;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(video, 0, 0, vw, vh);
+      const imageData = ctx.getImageData(0, 0, vw, vh);
+      workerRef.current.postMessage({ width: imageData.width, height: imageData.height, data: imageData.data }, [imageData.data.buffer]);
+    };
+
+    const loop = () => {
+      if (!scanningRef.current) return;
+      capture();
+      decodeTimerRef.current = setTimeout(() => {
+        decodeFrameRef.current = requestAnimationFrame(loop);
+      }, decodeInterval);
+    };
+
+    decodeFrameRef.current = requestAnimationFrame(loop);
+  };
+
+  const decodeImageData = (imageData) => {
+    return new Promise((resolve) => {
+      const worker = new Worker(new URL('../workers/qrWorker.js', import.meta.url), { type: 'module' });
+      worker.onmessage = (e) => {
+        resolve(e.data);
+        worker.terminate();
+      };
+      worker.onerror = (err) => {
+        console.error('Photo decode worker error:', err);
+        resolve(null);
+        worker.terminate();
+      };
+      worker.postMessage(
+        { width: imageData.width, height: imageData.height, data: imageData.data },
+        [imageData.data.buffer]
+      );
+    });
   };
 
   const takePhotoAndScan = async () => {
@@ -109,10 +161,24 @@ export default function Scanner({ onNavigate, onBack }) {
         quality: 90,
         allowEditing: false,
         resultType: 'DataUrl',
-        correctOrientation: true
+        correctOrientation: true,
       });
-      const file = dataURLtoFile(photo.dataUrl, 'qr-scan.jpg');
-      const text = await html5QrCodeRef.current.scanFile(file, false);
+
+      const image = new Image();
+      image.src = photo.dataUrl;
+      await new Promise((resolve, reject) => {
+        image.onload = resolve;
+        image.onerror = reject;
+      });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(image, 0, 0);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+      const text = await decodeImageData(imageData);
       if (!text) {
         setError('No QR code found in that photo. Please try again.');
         return;
@@ -134,14 +200,14 @@ export default function Scanner({ onNavigate, onBack }) {
     }
   };
 
-  const handleScanSuccess = async (qrId) => {
+  async function handleScanSuccess(qrId) {
     if ('vibrate' in navigator) {
       navigator.vibrate(100);
     }
     setScanResult(qrId);
     await stopScanner();
     lookupQrCode(qrId);
-  };
+  }
 
   const lookupQrCode = async (qrId) => {
     const trimmed = qrId.trim();
@@ -227,7 +293,17 @@ export default function Scanner({ onNavigate, onBack }) {
           </form>
         ) : (
           <>
-            <div id="scanner-viewport" className="w-full h-full object-cover"></div>
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-cover"
+            />
+            <canvas
+              ref={canvasRef}
+              className="absolute opacity-0 pointer-events-none size-0"
+            />
 
             {isScanning && (
               <div className="absolute inset-0 pointer-events-none">

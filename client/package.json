@@ -25,6 +25,7 @@
     "@tailwindcss/vite": "^4.3.2",
     "browser-image-compression": "^2.0.2",
     "html5-qrcode": "^2.3.8",
+    "jsqr": "^1.4.0",
     "jszip": "^3.10.1",
     "lucide-react": "^1.24.0",
     "piexifjs": "^1.0.6",
