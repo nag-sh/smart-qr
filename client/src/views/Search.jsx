@@ -678,14 +678,14 @@ export default function Search({ onNavigate, showQuickAdd, setShowQuickAdd }) {
       {/* Quick Add Modal */}
       {showQuickAdd && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/30 backdrop-blur-md"
           onClick={() => setShowQuickAdd(false)}
           role="dialog"
           aria-modal="true"
           aria-label="Quick Add"
         >
           <div
-            className="glass-panel w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-slate-800 relative space-y-5"
+            className="glass-panel-modal w-full max-w-sm rounded-3xl p-6 relative space-y-5 animate-in fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <button
