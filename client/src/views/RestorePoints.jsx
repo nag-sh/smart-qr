@@ -309,7 +309,7 @@ export default function RestorePoints({ onNavigate }) {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto py-6 px-4 space-y-6 relative">
+    <div className="w-full max-w-md mx-auto py-6 px-4 space-y-6 relative overflow-hidden">
       {/* Header with back button */}
       <div className="flex items-center gap-3">
         <button
@@ -331,10 +331,9 @@ export default function RestorePoints({ onNavigate }) {
       </div>
 
       {/* Timeline panel */}
-      <div className="glass-panel rounded-2xl p-6 shadow-2xl relative overflow-hidden">
-        <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-600/10 rounded-full blur-3xl"></div>
-        {renderTimeline()}
-      </div>
+      <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-600/10 rounded-full blur-3xl"></div>
+      {renderTimeline()}
+
 
       {/* Floating multi-restore action */}
       {selectedChangesToRestore.size > 0 && (
