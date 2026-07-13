@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Key, Eye, EyeOff, Save, CheckCircle2, AlertTriangle, 
-  ExternalLink, Database, FileJson, Download, Upload, Server, ShieldAlert,
+  ExternalLink, FileJson, Download, Upload, Server,
   RefreshCw, ArrowDownToLine, ArrowUpFromLine, History, ArrowRight, ArrowLeft, Cloud
 } from 'lucide-react';
 import { 
@@ -22,6 +22,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
   const [importing, setImporting] = useState(false);
   const [importSuccess, setImportSuccess] = useState('');
   const [importError, setImportError] = useState('');
+  const [includeImages, setIncludeImages] = useState(true);
 
   const importFileInputRef = useRef(null);
 
@@ -268,7 +269,26 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
     try {
       const fileName = file.name.toLowerCase();
 
-      if (fileName.endsWith('.db')) {
+      if (fileName.endsWith('.zip')) {
+        if (storageMode === 'local') {
+          throw new Error('Zip archives (.zip) are not supported in Offline Local Browser mode. Switch to Server mode to restore zip backups.');
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch('/api/import/zip', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await response.json();
+        if (!data.success) {
+          throw new Error(data.message || 'Zip archive restore failed.');
+        }
+        setImportSuccess('Backup archive restored successfully! Reloading...');
+        setTimeout(() => window.location.reload(), 1500);
+
+      } else if (fileName.endsWith('.db')) {
         if (storageMode === 'local') {
           throw new Error('SQLite binary databases (.db) are not supported in Offline Local Browser mode. Switch to Server mode to restore SQLite backups.');
         }
@@ -321,7 +341,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
           setTimeout(() => window.location.reload(), 1500);
         }
       } else {
-        throw new Error('Unsupported backup format. Please select a .db (SQLite) or .json file.');
+        throw new Error('Unsupported backup format. Please select a .zip, .db, or .json file.');
       }
     } catch (err) {
       console.error(err);
@@ -618,53 +638,20 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
           <div className="space-y-2">
             <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Export Backups</span>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* SQLite DB Export */}
               {storageMode === 'server' ? (
                 <a
-                  href="/api/export/db"
+                  href={`/api/export/zip?includeImages=${includeImages}`}
                   download
-                  className="p-3 rounded-xl glass-card border border-slate-800/60 flex items-center justify-between hover:border-purple-500/30 transition-all text-left group cursor-pointer"
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 bg-purple-500/10 rounded-lg text-purple-400">
-                      <Database className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <span className="block text-xs font-bold text-slate-200 group-hover:text-purple-300">DB + Images (.zip)</span>
-                      <span className="block text-[9px] text-slate-500">SQLite DB with all photos</span>
-                    </div>
-                  </div>
-                  <Download className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-200 transition-colors" />
-                </a>
-              ) : (
-                <div className="p-3 rounded-xl glass-card border border-slate-800/40 opacity-50 flex items-center justify-between text-left select-none">
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 bg-slate-800 rounded-lg text-slate-500">
-                      <Database className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <span className="block text-xs font-bold text-slate-400">SQLite DB</span>
-                      <span className="block text-[9px] text-slate-600">Not supported locally</span>
-                    </div>
-                  </div>
-                  <ShieldAlert className="w-3.5 h-3.5 text-slate-600" />
-                </div>
-              )}
-
-              {/* JSON Export */}
-              {storageMode === 'server' ? (
-                <a
-                  href="/api/export/json"
-                  download
-                  className="p-3 rounded-xl glass-card border border-slate-800/60 flex items-center justify-between hover:border-pink-500/30 transition-all text-left group cursor-pointer"
+                  aria-label="Export backup as zip"
+                  className="p-3 rounded-xl glass-card border border-slate-800/60 flex items-center justify-between hover:border-pink-500/30 transition-all text-left group cursor-pointer sm:col-span-2 w-full"
                 >
                   <div className="flex items-center gap-2">
                     <div className="p-2 bg-pink-500/10 rounded-lg text-pink-400">
                       <FileJson className="w-4 h-4" />
                     </div>
                     <div>
-                      <span className="block text-xs font-bold text-slate-200 group-hover:text-pink-300">JSON + Images</span>
-                      <span className="block text-[9px] text-slate-500">Portable, images embedded</span>
+                      <span className="block text-xs font-bold text-slate-200 group-hover:text-pink-300">Export Backup (.zip)</span>
+                      <span className="block text-[9px] text-slate-500">JSON + images archive</span>
                     </div>
                   </div>
                   <Download className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-200 transition-colors" />
@@ -672,7 +659,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
               ) : (
                 <button
                   onClick={handleLocalExport}
-                  className="p-3 rounded-xl glass-card border border-slate-800/60 flex items-center justify-between hover:border-pink-500/30 transition-all text-left group cursor-pointer w-full"
+                  className="p-3 rounded-xl glass-card border border-slate-800/60 flex items-center justify-between hover:border-pink-500/30 transition-all text-left group cursor-pointer w-full sm:col-span-2"
                 >
                   <div className="flex items-center gap-2">
                     <div className="p-2 bg-pink-500/10 rounded-lg text-pink-400">
@@ -687,6 +674,36 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
                 </button>
               )}
             </div>
+
+            {storageMode === 'server' && (
+              <label className="flex items-start gap-3 p-3 rounded-xl bg-slate-900/50 border border-slate-800/60 cursor-pointer select-none group">
+                <div className="relative mt-0.5">
+                  <input
+                    type="checkbox"
+                    checked={includeImages}
+                    onChange={(e) => setIncludeImages(e.target.checked)}
+                    className="sr-only"
+                  />
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                    includeImages
+                      ? 'bg-purple-500 border-purple-500'
+                      : 'border-slate-600 bg-slate-800 group-hover:border-slate-400'
+                  }`}>
+                    {includeImages && (
+                      <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 12 12">
+                        <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <span className="block text-xs font-semibold text-slate-300">Include images</span>
+                  <span className="block text-[10px] text-slate-500 mt-0.5 leading-normal">
+                    When checked, the zip includes uploaded photos. Uncheck to export only the JSON data.
+                  </span>
+                </div>
+              </label>
+            )}
           </div>
 
           {/* Import Backup utilities */}
