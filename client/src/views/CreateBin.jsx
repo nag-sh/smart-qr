@@ -3,7 +3,7 @@ import { Box, MapPin, Camera, AlertCircle, RefreshCw, Save, ArrowLeft, QrCode, S
 import imageCompression from 'browser-image-compression';
 import { createBin, getBins } from '../services/storage';
 
-export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack }) {
+export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refreshNonce }) {
   // Mode switcher when qrId is undefined: 'choice' | 'form'
   const [flowMode, setFlowMode] = useState(qrId ? 'form' : 'choice');
   const [generateMode, setGenerateMode] = useState(false); // True if system generating QR
@@ -27,7 +27,7 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack }) {
       }
     };
     fetchLocations();
-  }, []);
+  }, [refreshNonce]);
   
   // UI States
   const [compressing, setCompressing] = useState(false);
@@ -91,6 +91,13 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack }) {
     }
     setUseInlineCamera(false);
   };
+
+  useEffect(() => {
+    if (flowMode === 'form' && !imagePreview && !imageFile) {
+      startInlineCamera();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flowMode]);
 
   const capturePhoto = (e) => {
     if (e) e.stopPropagation();
@@ -337,35 +344,35 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack }) {
   // 3. CREATE BIN FORM
   return (
     <div className="w-full max-w-md mx-auto py-6 px-4 relative overflow-hidden">
-      {/* Back button */}
-      <button
-        onClick={() => {
-          if (qrId) {
-            onNavigate('scanner');
-          } else {
-            setFlowMode('choice');
-            setGenerateMode(false);
-          }
-        }}
-        className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
-      >
-        <ArrowLeft className="w-5 h-5" />
-      </button>
-
       {/* Glow decoration */}
-      <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-600/10 rounded-full blur-3xl"></div>
+      <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-600/10 rounded-full blur-3xl pointer-events-none"></div>
 
-      <div className="p-5 border-b border-slate-800/50 bg-slate-900/30 flex items-center gap-3">
-        <div className="p-2.5 bg-purple-500/10 rounded-xl text-purple-400">
-          <Box className="w-5 h-5" />
-        </div>
-        <div>
-          <h1 className="font-bold text-sm text-slate-200">Register New Bin</h1>
-          <p className="text-[10px] text-slate-400">
-            {generateMode 
-              ? 'Seeding with digital QR code generation' 
-              : <>QR: <span className="font-mono text-purple-300">{qrId}</span></>}
-          </p>
+      <div className="p-5 flex items-center gap-3 border-b border-slate-800/50">
+        <button
+          onClick={() => {
+            if (qrId) {
+              onNavigate('scanner');
+            } else {
+              setFlowMode('choice');
+              setGenerateMode(false);
+            }
+          }}
+          className="p-2 -ml-1 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div className="flex items-center gap-2.5">
+          <div className="p-2.5 bg-purple-500/10 rounded-xl text-purple-400">
+            <Box className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="font-bold text-sm text-slate-200">Register New Bin</h1>
+            <p className="text-[10px] text-slate-400">
+              {generateMode 
+                ? 'Seeding with digital QR code generation' 
+                : <>QR: <span className="font-mono text-purple-300">{qrId}</span></>}
+            </p>
+          </div>
         </div>
       </div>
 
@@ -383,38 +390,32 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack }) {
             className="hidden"
           />
           
-          <div 
-            className="border-2 border-dashed border-slate-800 hover:border-purple-500/40 rounded-2xl aspect-video bg-slate-950 flex flex-col items-center justify-center transition-all overflow-hidden relative"
-          >
+          <div className="relative bg-slate-950 aspect-square overflow-hidden rounded-2xl">
             {useInlineCamera ? (
-              <div className="absolute inset-0 w-full h-full flex items-center justify-center">
-                <video 
+              <>
+                <video
                   ref={videoRef}
                   autoPlay
                   playsInline
                   className="w-full h-full object-cover"
                 />
-                {/* Camera controls */}
-                <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-3 px-4 z-20">
+                <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 px-2 z-20">
                   <button
                     type="button"
                     onClick={capturePhoto}
-                    className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-lg active:scale-95 transition-transform"
+                    className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg active:scale-95 transition-transform cursor-pointer"
                   >
                     <Camera className="w-4 h-4" /> Snap Photo
                   </button>
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      stopInlineCamera();
-                    }}
-                    className="px-4 py-2 bg-slate-900/90 border border-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-bold cursor-pointer"
+                    onClick={triggerFilePicker}
+                    className="px-4 py-2.5 bg-slate-900/90 border border-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-bold cursor-pointer"
                   >
-                    Cancel
+                    Upload File
                   </button>
                 </div>
-              </div>
+              </>
             ) : imagePreview ? (
               <>
                 <img src={imagePreview} alt="Bin Preview" className="w-full h-full object-cover" />
@@ -436,12 +437,12 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack }) {
                 </div>
               </>
             ) : compressing ? (
-              <div className="space-y-2 text-center text-slate-400 text-xs">
+              <div className="absolute inset-0 flex flex-col items-center justify-center space-y-2 text-center text-slate-400 text-xs">
                 <RefreshCw className="w-6 h-6 animate-spin mx-auto text-purple-400" />
                 <span>Optimizing photo...</span>
               </div>
             ) : (
-              <div className="space-y-3 text-center text-slate-400 p-4">
+              <div className="absolute inset-0 flex flex-col items-center justify-center space-y-3 text-center text-slate-400 p-4">
                 <div className="flex justify-center gap-3">
                   <button
                     type="button"

@@ -51,6 +51,9 @@ function AppContent() {
   const stack = dedupeStack(parseModalStack(searchParams));
   const modalTypes = stack.map(l => l.type);
 
+  const [refreshNonce, setRefreshNonce] = useState(0);
+  const bumpRefresh = () => setRefreshNonce((n) => n + 1);
+
   // Auto-close print helper popup after 5 seconds to stay out of the user's way
   useEffect(() => {
     let interval;
@@ -92,6 +95,7 @@ function AppContent() {
     const existingIdx = stack.findIndex((l) => l.type === viewName);
     if (existingIdx >= 0) {
       if (existingIdx < stack.length - 1) {
+        bumpRefresh();
         const layersToPop = stack.length - 1 - existingIdx;
         if (pushDepth.current >= layersToPop) {
           pushDepth.current -= layersToPop;
@@ -112,6 +116,7 @@ function AppContent() {
   };
 
   const onBack = () => {
+    bumpRefresh();
     if (pushDepth.current > 0) {
       pushDepth.current -= 1;
       navigate(-1);
@@ -140,13 +145,13 @@ function AppContent() {
 
       let view;
       switch (type) {
-        case 'scanner': view = <Scanner onNavigate={onNavigate} onBack={onBack} />; break;
-        case 'create-bin': view = <CreateBin qrId={params.qrId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} />; break;
-        case 'bin-details': view = <BinDetails binId={params.binId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} modalTypes={modalTypes} />; break;
-        case 'item-details': view = <ItemDetails itemId={params.itemId} onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} />; break;
-        case 'add-item': view = <AddItem binId={params.binId} onNavigate={onNavigate} onBack={onBack} />; break;
-        case 'settings': view = <Settings onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} />; break;
-        case 'restore-points': view = <RestorePoints onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} />; break;
+        case 'scanner': view = <Scanner onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
+        case 'create-bin': view = <CreateBin qrId={params.qrId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} refreshNonce={refreshNonce} />; break;
+        case 'bin-details': view = <BinDetails binId={params.binId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
+        case 'item-details': view = <ItemDetails itemId={params.itemId} onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
+        case 'add-item': view = <AddItem binId={params.binId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
+        case 'settings': view = <Settings onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
+        case 'restore-points': view = <RestorePoints onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
         default: return null;
       }
 

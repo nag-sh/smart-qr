@@ -8,7 +8,7 @@ import { getBin, getBins, updateBin, deleteBin, batchManageItems } from '../serv
 import imageCompression from 'browser-image-compression';
 import EntityList from '../components/EntityList';
 
-export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, modalTypes }) {
+export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, modalTypes, refreshNonce }) {
   const [bin, setBin] = useState(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -66,7 +66,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
       fetchBinDetails();
       fetchLocations();
     }
-  }, [binId]);
+  }, [binId, refreshNonce]);
 
   useEffect(() => {
     if (!showOverflowMenu) return;

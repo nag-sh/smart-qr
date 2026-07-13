@@ -7,7 +7,7 @@ import {
   getAuditLog, restoreAuditEntry, cherryPickAuditEntry, restoreSelectedChanges
 } from '../services/storage';
 
-export default function RestorePoints({ onNavigate, onBack, modalTypes }) {
+export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshNonce }) {
   // Audit timeline state
   const [auditLog, setAuditLog] = useState([]);
   const [auditLoading, setAuditLoading] = useState(false);
@@ -44,7 +44,7 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes }) {
 
   useEffect(() => {
     loadAudit();
-  }, []);
+  }, [refreshNonce]);
 
   const getOperationColor = (op) => {
     if (op.startsWith('CREATE_')) return 'bg-emerald-500/10 border-emerald-500/35 text-emerald-400';

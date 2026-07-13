@@ -5,7 +5,7 @@ import {
 import { searchItems, getBin, getBins, updateItem, deleteItem, batchManageItems } from '../services/storage';
 import imageCompression from 'browser-image-compression';
 
-export default function ItemDetails({ onNavigate, itemId, onBack, modalTypes }) {
+export default function ItemDetails({ onNavigate, itemId, onBack, modalTypes, refreshNonce }) {
   const [item, setItem] = useState(null);
   const [bin, setBin] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -80,7 +80,7 @@ export default function ItemDetails({ onNavigate, itemId, onBack, modalTypes }) 
     };
 
     fetchItem();
-  }, [itemId]);
+  }, [itemId, refreshNonce]);
 
   useEffect(() => {
     if (!showOverflowMenu) return;
