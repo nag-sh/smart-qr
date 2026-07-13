@@ -166,7 +166,8 @@
     width: 11in !important;
     height: 8.5in !important;
     box-sizing: border-box !important;
-    padding: 0.6in !important;
+    padding: 0.4in !important;
+    gap: 0.75in !important;
     margin: 0 !important;
     page-break-inside: avoid !important;
     page-break-after: avoid !important;
@@ -174,14 +175,13 @@
   }
 
   .print-qr-code {
-    width: 3.5in !important;
-    height: 3.5in !important;
-    margin-bottom: 0.6in !important;
+    width: 5.5in !important;
+    height: 5.5in !important;
     display: block !important;
   }
 
   .print-bin-name {
-    font-size: 56pt !important;
+    font-size: 72pt !important;
     font-weight: 900 !important;
     font-family: 'Outfit', sans-serif !important;
     color: #000000 !important;

@@ -263,7 +263,7 @@ function AppContent() {
       {printData && (
         <div className="print-label-only hidden">
           <img
-            src={`https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(printData.qr_id)}`}
+            src={`https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&data=${encodeURIComponent(printData.qr_id)}`}
             alt="Print QR Label"
             className="print-qr-code"
           />
