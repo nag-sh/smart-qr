@@ -75,37 +75,31 @@
   background: linear-gradient(135deg, rgba(88, 28, 135, 0.15) 0%, rgba(131, 24, 67, 0.15) 100%);
 }
 
-/* Pulsing QR Target Overlay Animation */
+/* Pulsing QR Target Overlay Animation — compositor-only (opacity/scale) to avoid paint jank */
 @keyframes qr-scan-pulse {
-  0%, 100% {
-    border-color: rgba(168, 85, 247, 0.4);
-    box-shadow: 0 0 8px rgba(168, 85, 247, 0.2);
-  }
-  50% {
-    border-color: rgba(236, 72, 153, 0.8);
-    box-shadow: 0 0 20px rgba(236, 72, 153, 0.5);
-  }
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.03); }
 }
 
 .animate-qr-pulse {
   animation: qr-scan-pulse 2s infinite ease-in-out;
+  will-change: transform, opacity;
 }
 
-/* Scanning Line Animation */
-@keyframes scan-line-move {
-  0% {
-    top: 0%;
-  }
-  50% {
-    top: 100%;
-  }
-  100% {
-    top: 0%;
-  }
+/* Scanning Line Animation — compositor-only (transform) sweep */
+.scan-line-gradient {
+  background: linear-gradient(to bottom, transparent 0%, transparent 47%, rgba(236, 72, 153, 0.9) 50%, transparent 53%, transparent 100%);
 }
 
-.animate-scan-line {
-  animation: scan-line-move 3s infinite linear;
+@keyframes scan-sweep {
+  0% { transform: translateY(-50%); }
+  50% { transform: translateY(50%); }
+  100% { transform: translateY(-50%); }
+}
+
+.animate-scan-sweep {
+  animation: scan-sweep 3s linear infinite;
+  will-change: transform;
 }
 
 /* Scrollbar styling */

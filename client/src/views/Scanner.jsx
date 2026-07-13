@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { Capacitor } from '@capacitor/core';
 import { Camera } from '@capacitor/camera';
 import { Camera as CameraIcon, CameraOff, QrCode, AlertCircle, ArrowRight, Keyboard, RefreshCw, ArrowLeft } from 'lucide-react';
 import { getBin } from '../services/storage';
@@ -24,7 +23,6 @@ export default function Scanner({ onNavigate, onBack }) {
   const [manualQr, setManualQr] = useState('');
   const [loading, setLoading] = useState(false);
   const html5QrCodeRef = useRef(null);
-  const isNative = Capacitor.isNativePlatform();
 
   useEffect(() => {
     html5QrCodeRef.current = new Html5Qrcode('scanner-viewport');
@@ -41,36 +39,22 @@ export default function Scanner({ onNavigate, onBack }) {
     }
   }, [manualMode]);
 
-  const ensureCameraPermission = async () => {
-    if (!isNative) return;
-    const status = await Camera.checkPermissions();
-    if (status.camera !== 'granted' && status.camera !== 'limited') {
-      const requested = await Camera.requestPermissions();
-      if (requested.camera !== 'granted' && requested.camera !== 'limited') {
-        throw new Error('Camera permission denied');
-      }
-    }
-  };
-
   const startScanner = async () => {
     setError('');
     setScanResult('');
     try {
-      if (isNative) {
-        await ensureCameraPermission();
-      }
       if (html5QrCodeRef.current) {
         if (html5QrCodeRef.current.isScanning) {
           await html5QrCodeRef.current.stop();
         }
         await html5QrCodeRef.current.start(
-          { facingMode: 'environment' },
+          { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
           {
             fps: 10,
             qrbox: (width, height) => {
               const size = Math.min(width, height) * 0.65;
               return { width: size, height: size };
-            }
+            },
           },
           (decodedText) => {
             handleScanSuccess(decodedText);
@@ -229,12 +213,14 @@ export default function Scanner({ onNavigate, onBack }) {
             {isScanning && (
               <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                 <div className="absolute inset-0 bg-slate-950/40"></div>
-                <div className="w-[65%] aspect-square border-2 rounded-2xl animate-qr-pulse relative z-10">
+                <div className="w-[65%] aspect-square border-2 border-purple-500/60 rounded-2xl animate-qr-pulse relative z-10">
                   <div className="absolute -top-[3px] -left-[3px] w-6 h-6 border-t-4 border-l-4 border-purple-500 rounded-tl-xl"></div>
                   <div className="absolute -top-[3px] -right-[3px] w-6 h-6 border-t-4 border-r-4 border-purple-500 rounded-tr-xl"></div>
                   <div className="absolute -bottom-[3px] -left-[3px] w-6 h-6 border-b-4 border-l-4 border-purple-500 rounded-bl-xl"></div>
                   <div className="absolute -bottom-[3px] -right-[3px] w-6 h-6 border-b-4 border-r-4 border-purple-500 rounded-br-xl"></div>
-                  <div className="absolute left-1 right-1 h-0.5 bg-gradient-to-r from-transparent via-pink-500 to-transparent shadow-lg shadow-pink-500/50 animate-scan-line"></div>
+                  <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
+                    <div className="absolute left-1 right-1 top-0 h-full scan-line-gradient animate-scan-sweep"></div>
+                  </div>
                 </div>
               </div>
             )}
