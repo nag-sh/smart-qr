@@ -1,16 +1,23 @@
 {
   "name": "client",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:mobile": "vite build --config vite.mobile.config.js",
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run"
   },
   "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/camera": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/filesystem": "^7.0.0",
+    "@capacitor/preferences": "^7.0.0",
+    "@capacitor/share": "^7.0.0",
     "@google/generative-ai": "^0.24.1",
     "@tailwindcss/vite": "^4.3.2",
     "browser-image-compression": "^2.0.2",
@@ -24,6 +31,7 @@
     "tailwindcss": "^4.3.2"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.0.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",

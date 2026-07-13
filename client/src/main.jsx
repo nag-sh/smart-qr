@@ -2,9 +2,9 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
+import { isNative } from './utils/platform.js'
 
-// Register service worker for PWA
-if ('serviceWorker' in navigator) {
+if (!isNative() && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
       .then(reg => console.log('Service Worker registered successfully with scope: ', reg.scope))

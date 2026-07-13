@@ -1,0 +1,6 @@
+{
+  "appId": "sh.nag.smartqr",
+  "appName": "Smart QR Inventory",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}
