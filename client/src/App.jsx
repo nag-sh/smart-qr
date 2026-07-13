@@ -172,7 +172,7 @@ function AppContent() {
   };
 
   return (
-    <div ref={rootRef} className="min-h-screen bg-slate-950 pb-28 text-slate-100 flex flex-col justify-between">
+    <div ref={rootRef} className="min-h-screen bg-slate-950 pb-28 text-slate-100 flex flex-col justify-between" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
       {/* Main Content Area — Search is always the base view */}
       <main className="flex-1 w-full max-w-4xl mx-auto px-2">
         <Search onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} />
