@@ -4,8 +4,9 @@ import {
   ExternalLink, FileJson, Download, Upload, Server,
   RefreshCw, ArrowDownToLine, ArrowUpFromLine, History, ArrowRight, ArrowLeft, Cloud
 } from 'lucide-react';
+import { isNative } from '../utils/platform.js';
 import { 
-  getStorageMode, setStorageMode as persistStorageMode, 
+  getStorageMode, setStorageMode as persistStorageMode, initStorage,
   getLocalExportData, restoreLocalData,
   localRecordsForSync, localRecordsFromSync
 } from '../services/storage';
@@ -22,6 +23,13 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
 
   // Storage and database mode states
   const [storageMode, setStorageModeState] = useState(getStorageMode()); // 'server' | 'local'
+
+  const isNativePlatform = isNative();
+
+  const refreshStorageMode = async () => {
+    await initStorage();
+    setStorageModeState(getStorageMode());
+  };
 
   // Import operations state
   const [importing, setImporting] = useState(false);
@@ -235,10 +243,15 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
 
   // Toggle storage modes
   const handleStorageModeChange = async (mode) => {
-    if (confirm(`Switch storage database to ${mode === 'local' ? 'Local Browser Memory (Offline)' : 'Central SQLite Server'}? The page will reload.`)) {
+    const label = mode === 'local' ? 'Local Browser Memory (Offline)' : 'Central SQLite Server';
+    if (confirm(`Switch storage database to ${label}? ${isNativePlatform ? 'This will refresh the app.' : 'The page will reload.'}`)) {
       await persistStorageMode(mode);
       setStorageModeState(mode);
-      window.location.reload();
+      if (isNativePlatform) {
+        await refreshStorageMode();
+      } else {
+        window.location.reload();
+      }
     }
   };
 
@@ -346,8 +359,13 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
           const bins = await Promise.all(parsed.bins.map(convertImageUrl));
           const items = await Promise.all(parsed.items.map(convertImageUrl));
           await restoreLocalData({ bins, items });
-          setImportSuccess('Offline local backup restored successfully! Reloading...');
-          setTimeout(() => window.location.reload(), 1500);
+          if (isNativePlatform) {
+            await refreshStorageMode();
+            setImportSuccess('Offline local backup restored successfully.');
+          } else {
+            setImportSuccess('Offline local backup restored successfully! Reloading...');
+            setTimeout(() => window.location.reload(), 1500);
+          }
           return;
         }
 
@@ -362,8 +380,13 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
         if (!data.success) {
           throw new Error(data.message || 'Zip archive restore failed.');
         }
-        setImportSuccess('Backup archive restored successfully! Reloading...');
-        setTimeout(() => window.location.reload(), 1500);
+        if (isNativePlatform) {
+          await refreshStorageMode();
+          setImportSuccess('Backup archive restored successfully.');
+        } else {
+          setImportSuccess('Backup archive restored successfully! Reloading...');
+          setTimeout(() => window.location.reload(), 1500);
+        }
 
       } else if (fileName.endsWith('.db')) {
         if (storageMode === 'local') {
@@ -382,8 +405,13 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
         if (!data.success) {
           throw new Error(data.message || 'SQLite database restore failed.');
         }
-        setImportSuccess('Central SQLite database restored successfully! Reloading...');
-        setTimeout(() => window.location.reload(), 1500);
+        if (isNativePlatform) {
+          await refreshStorageMode();
+          setImportSuccess('Central SQLite database restored successfully.');
+        } else {
+          setImportSuccess('Central SQLite database restored successfully! Reloading...');
+          setTimeout(() => window.location.reload(), 1500);
+        }
 
       } else if (fileName.endsWith('.json')) {
         if (storageMode === 'local') {
@@ -392,8 +420,13 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
             try {
               const parsed = JSON.parse(event.target.result);
               await restoreLocalData(parsed);
-              setImportSuccess('Offline local backup restored successfully! Reloading...');
-              setTimeout(() => window.location.reload(), 1500);
+              if (isNativePlatform) {
+                await refreshStorageMode();
+                setImportSuccess('Offline local backup restored successfully.');
+              } else {
+                setImportSuccess('Offline local backup restored successfully! Reloading...');
+                setTimeout(() => window.location.reload(), 1500);
+              }
             } catch (err) {
               setImportError('Invalid JSON format. Check backup file contents.');
               setImporting(false);
@@ -413,8 +446,13 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
           if (!data.success) {
             throw new Error(data.message || 'JSON backup restoration failed.');
           }
-          setImportSuccess('Central database restored from JSON successfully! Reloading...');
-          setTimeout(() => window.location.reload(), 1500);
+          if (isNativePlatform) {
+            await refreshStorageMode();
+            setImportSuccess('Central database restored from JSON successfully.');
+          } else {
+            setImportSuccess('Central database restored from JSON successfully! Reloading...');
+            setTimeout(() => window.location.reload(), 1500);
+          }
         }
       } else {
         throw new Error('Unsupported backup format. Please select a .zip, .db, or .json file.');
@@ -436,7 +474,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
 
   return (
     <div className="w-full max-w-md mx-auto py-6 px-4 space-y-6">
-      {/* 1. DATABASE & STORAGE MODE + CLOUD SYNC */}
+      {!isNativePlatform && (
       <section className="space-y-6">
         
         <div className="flex items-center gap-3 mb-6">
@@ -592,6 +630,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
           </div>
         )}
       </section>
+      )}
 
       <hr className="border-slate-800/60" />
 
@@ -859,7 +898,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
 
 
       {/* DELETE-UNREFERENCED DANGER MODAL */}
-      {modalTypes?.includes('settings-warning') && (
+      {!isNativePlatform && modalTypes?.includes('settings-warning') && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm pointer-events-auto">
           <div className="glass-panel w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-red-500/20 space-y-5 relative">
             <button
@@ -908,7 +947,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
       )}
 
       {/* CLOUD SERVER CONFIGURATION MODAL */}
-      {modalTypes?.includes('settings-cloud') && (
+      {!isNativePlatform && modalTypes?.includes('settings-cloud') && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm pointer-events-auto"
           onClick={handleCloudCancel}
