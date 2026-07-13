@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { Camera, CameraOff, QrCode, AlertCircle, ArrowRight, Keyboard, RefreshCw, ArrowLeft } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { Camera } from '@capacitor/camera';
+import { Camera as CameraIcon, CameraOff, QrCode, AlertCircle, ArrowRight, Keyboard, RefreshCw, ArrowLeft } from 'lucide-react';
 import { getBin } from '../services/storage';
 
 export default function Scanner({ onNavigate, onBack }) {
@@ -32,6 +34,22 @@ export default function Scanner({ onNavigate, onBack }) {
         // If already scanning, stop first
         if (html5QrCodeRef.current.isScanning) {
           await html5QrCodeRef.current.stop();
+        }
+
+        if (Capacitor.isNativePlatform()) {
+          try {
+            const permissionResult = await Camera.requestPermissions();
+            if (permissionResult.camera === 'denied') {
+              setError('Camera permission is required to scan QR codes. Please enable it in app settings.');
+              setIsScanning(false);
+              return;
+            }
+          } catch (permissionErr) {
+            console.error('Camera permission request failed:', permissionErr);
+            setError('Could not request camera permission. Please allow camera access in app settings.');
+            setIsScanning(false);
+            return;
+          }
         }
 
         await html5QrCodeRef.current.start(
@@ -136,7 +154,7 @@ export default function Scanner({ onNavigate, onBack }) {
           >
           {manualMode ? (
             <>
-              <Camera className="w-3.5 h-3.5" /> Use Camera
+              <CameraIcon className="w-3.5 h-3.5" /> Use Camera
             </>
           ) : (
             <>
@@ -216,7 +234,7 @@ export default function Scanner({ onNavigate, onBack }) {
                   disabled={loading}
                   className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-medium text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
-                  <Camera className="w-3.5 h-3.5" /> Start Camera
+                  <CameraIcon className="w-3.5 h-3.5" /> Start Camera
                 </button>
               </div>
             )}
