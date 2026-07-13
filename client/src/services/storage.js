@@ -36,7 +36,7 @@ const setLocalTable = (key, data) => {
 };
 
 export const getStorageMode = () => {
-  return localStorage.getItem('storage_mode') || 'server'; // 'server' | 'local'
+  return localStorage.getItem('storage_mode') || 'local'; // 'server' | 'local'
 };
 
 export const setStorageMode = (mode) => {

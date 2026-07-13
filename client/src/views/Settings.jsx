@@ -486,8 +486,8 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              Offline Browser
-            </button>
+              Local Only
+             </button>
           </div>
 
           <div className="p-3.5 bg-slate-900/60 rounded-xl border border-slate-800 text-[11px] text-slate-400 leading-relaxed">

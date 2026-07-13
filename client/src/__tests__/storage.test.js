@@ -21,9 +21,9 @@ beforeEach(() => {
 });
 
 describe('storage mode helpers', () => {
-  it('defaults to server mode when unset', () => {
-    expect(getStorageMode()).toBe('server');
-    expect(isLocalOnly()).toBe(false);
+  it('defaults to local mode when unset', () => {
+    expect(getStorageMode()).toBe('local');
+    expect(isLocalOnly()).toBe(true);
   });
 
   it('round-trips a set storage mode', () => {
