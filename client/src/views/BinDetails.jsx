@@ -7,6 +7,7 @@ import {
 import { getBin, getBins, updateBin, deleteBin, batchManageItems } from '../services/storage';
 import imageCompression from 'browser-image-compression';
 import EntityList from '../components/EntityList';
+import useImageSrc from '../hooks/useImageSrc';
 
 export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, modalTypes, refreshNonce }) {
   const [bin, setBin] = useState(null);
@@ -35,6 +36,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
 
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const overflowMenuRef = useRef(null);
+  const binImageSrc = useImageSrc(bin?.image_url);
 
   const fetchLocations = async () => {
     try {
@@ -283,8 +285,8 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
                 onClick={() => binFileRef.current && binFileRef.current.click()}
                 className="border-2 border-dashed border-slate-800 hover:border-purple-500/40 rounded-2xl aspect-video bg-slate-950/60 flex items-center justify-center cursor-pointer overflow-hidden relative group"
               >
-                {editBinImagePreview || bin.image_url ? (
-                  <img src={editBinImagePreview || bin.image_url} className="w-full h-full object-cover" />
+                {editBinImagePreview || binImageSrc ? (
+                  <img src={editBinImagePreview || binImageSrc} className="w-full h-full object-cover" />
                 ) : (
                   <div className="text-center space-y-1">
                     <Plus className="w-6 h-6 text-slate-500 mx-auto" />
@@ -401,11 +403,11 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
         <div className="glass-panel rounded-3xl overflow-hidden shadow-2xl relative flex flex-col md:flex-row">
           {/* Left side/top: Photo */}
           <div className="w-full md:w-1/3 aspect-video md:aspect-auto md:min-h-[160px] bg-slate-900 flex items-center justify-center relative border-b md:border-b-0 md:border-r border-slate-800/60">
-            {bin.image_url ? (
-              <img src={bin.image_url} alt={bin.name} className="w-full h-full object-cover" />
-            ) : (
-              <Box className="w-12 h-12 text-slate-700 stroke-1" />
-            )}
+          {binImageSrc ? (
+            <img src={binImageSrc} alt={bin.name} className="w-full h-full object-cover" />
+          ) : (
+            <Box className="w-12 h-12 text-slate-700 stroke-1" />
+          )}
           </div>
 
           {/* Right side/details */}

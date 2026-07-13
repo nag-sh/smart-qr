@@ -6,18 +6,14 @@
  */
 
 import piexif from 'piexifjs';
-
-// Helper to convert file blobs to base64 Data URLs for local storage
-const fileToDataURL = (file) => new Promise((resolve, reject) => {
-  if (!file) {
-    resolve(null);
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = () => resolve(reader.result);
-  reader.onerror = error => reject(error);
-  reader.readAsDataURL(file);
-});
+import {
+  storeImage,
+  deleteImage,
+  refToDataURL,
+  dataURLToBlob,
+  blobToDataURL,
+  isImageRef
+} from './localImages';
 
 // Helper to get local storage tables
 const getLocalTable = (key) => {
@@ -55,18 +51,21 @@ export const isLocalOnly = () => {
  * Embed inventory metadata into a JPEG data URL using EXIF ImageDescription tag.
  * Only works on JPEG data URLs. Returns original if not JPEG or piexif fails.
  */
-function embedLocalImageMetadata(dataURL, metadata) {
+async function embedLocalImageMetadata(input, metadata) {
   try {
+    const wasBlob = input instanceof Blob;
+    let dataURL = wasBlob ? await blobToDataURL(input) : input;
     if (!dataURL || !dataURL.startsWith('data:image/jpeg')) {
-      return dataURL;
+      return input;
     }
     const exifObj = { '0th': {}, 'Exif': {}, 'GPS': {}, '1st': {} };
     exifObj['0th'][piexif.ImageIFD.ImageDescription] = JSON.stringify(metadata);
     const exifBytes = piexif.dump(exifObj);
-    return piexif.insert(exifBytes, dataURL);
+    const inserted = piexif.insert(exifBytes, dataURL);
+    return wasBlob ? dataURLToBlob(inserted) : inserted;
   } catch (err) {
     console.error('embedLocalImageMetadata failed:', err);
-    return dataURL;
+    return input;
   }
 }
 
@@ -159,20 +158,6 @@ function cleanupLocalQuarantine() {
 }
 
 /**
- * Push an image URL into the local quarantine list.
- */
-function quarantineImageUrl(imageUrl) {
-  if (!imageUrl) return;
-  try {
-    const q = getLocalTable('local_quarantine');
-    q.push({ image_url: imageUrl, quarantined_at: new Date().toISOString() });
-    setLocalTable('local_quarantine', q);
-  } catch (err) {
-    console.error('quarantineImageUrl failed:', err);
-  }
-}
-
-/**
  * 1. GET ALL BINS
  */
 export async function getBins() {
@@ -243,11 +228,11 @@ export async function createBin(qrId, name, location, imageFile) {
     }
 
     const id = crypto.randomUUID();
-    let image_url = imageFile ? await fileToDataURL(imageFile) : null;
+    let image_url = null;
 
     // Embed metadata into JPEG if possible
-    if (image_url) {
-      image_url = embedLocalImageMetadata(image_url, {
+    if (imageFile) {
+      const processed = await embedLocalImageMetadata(imageFile, {
         app: 'smart-inventory',
         owner: 'dion',
         entity_type: 'bin',
@@ -256,6 +241,7 @@ export async function createBin(qrId, name, location, imageFile) {
         qr_id: qrId,
         created_at: new Date().toISOString()
       });
+      image_url = await storeImage(processed);
     }
 
     const newBin = {
@@ -305,11 +291,11 @@ export async function createItem(binId, name, description, searchTagsArray, visi
     }
 
     const id = crypto.randomUUID();
-    let image_url = imageFile ? await fileToDataURL(imageFile) : null;
+    let image_url = null;
 
     // Embed metadata into JPEG if possible
-    if (image_url) {
-      image_url = embedLocalImageMetadata(image_url, {
+    if (imageFile) {
+      const processed = await embedLocalImageMetadata(imageFile, {
         app: 'smart-inventory',
         owner: 'dion',
         entity_type: 'item',
@@ -319,6 +305,7 @@ export async function createItem(binId, name, description, searchTagsArray, visi
         bin_name: parentBin.name,
         created_at: new Date().toISOString()
       });
+      image_url = await storeImage(processed);
     }
 
     const newItem = {
@@ -418,14 +405,58 @@ export function getLocalExportData() {
 }
 
 /**
- * Helper to restore local database tables from JSON import file
+ * Convert local image refs to base64 data URLs for server sync push.
  */
-export function restoreLocalData(data) {
+export async function localRecordsForSync(bins, items) {
+  const convertRecord = async (record) => {
+    if (!record || !isImageRef(record.image_url)) return record;
+    const dataUrl = await refToDataURL(record.image_url);
+    return { ...record, image_url: dataUrl };
+  };
+  return {
+    bins: await Promise.all(bins.map(convertRecord)),
+    items: await Promise.all(items.map(convertRecord))
+  };
+}
+
+/**
+ * Convert base64 data URLs from a server sync pull into local IndexedDB refs.
+ */
+export async function localRecordsFromSync(bins, items) {
+  const convertRecord = async (record) => {
+    if (!record || typeof record.image_url !== 'string' || !record.image_url.startsWith('data:')) {
+      return record;
+    }
+    const blob = dataURLToBlob(record.image_url);
+    const ref = await storeImage(blob);
+    return { ...record, image_url: ref };
+  };
+  return {
+    bins: await Promise.all(bins.map(convertRecord)),
+    items: await Promise.all(items.map(convertRecord))
+  };
+}
+
+/**
+ * Helper to restore local database tables from JSON import file.
+ * Any legacy base64 image_url values are moved into IndexedDB as refs.
+ */
+export async function restoreLocalData(data) {
   if (!data || !data.bins || !data.items) {
     throw new Error('Invalid JSON backup format');
   }
-  setLocalTable('local_bins', data.bins);
-  setLocalTable('local_items', data.items);
+  const convertRecord = async (record) => {
+    if (!record || typeof record.image_url !== 'string' || !record.image_url.startsWith('data:')) {
+      return record;
+    }
+    const blob = dataURLToBlob(record.image_url);
+    const ref = await storeImage(blob);
+    return { ...record, image_url: ref };
+  };
+  const bins = await Promise.all(data.bins.map(convertRecord));
+  const items = await Promise.all(data.items.map(convertRecord));
+  setLocalTable('local_bins', bins);
+  setLocalTable('local_items', items);
 }
 
 /**
@@ -440,21 +471,20 @@ export async function updateBin(id, fields, imageFile = null) {
     let image_url = bins[idx].image_url;
 
     if (imageFile) {
-      // Quarantine the old image
-      quarantineImageUrl(image_url);
-      // Convert new image and embed metadata
-      image_url = await fileToDataURL(imageFile);
-      if (image_url) {
-        image_url = embedLocalImageMetadata(image_url, {
-          app: 'smart-inventory',
-          owner: 'dion',
-          entity_type: 'bin',
-          entity_id: id,
-          entity_name: (fields.name || bins[idx].name).trim(),
-          qr_id: bins[idx].qr_id,
-          created_at: bins[idx].created_at
-        });
+      if (isImageRef(image_url)) {
+        await deleteImage(image_url);
       }
+      // Convert new image and embed metadata
+      const processed = await embedLocalImageMetadata(imageFile, {
+        app: 'smart-inventory',
+        owner: 'dion',
+        entity_type: 'bin',
+        entity_id: id,
+        entity_name: (fields.name || bins[idx].name).trim(),
+        qr_id: bins[idx].qr_id,
+        created_at: bins[idx].created_at
+      });
+      image_url = await storeImage(processed);
     }
 
     bins[idx] = {
@@ -501,7 +531,9 @@ export async function deleteBin(id) {
 
     const bin = bins.find(b => b.id === id);
     if (bin) {
-      quarantineImageUrl(bin.image_url);
+      if (isImageRef(bin.image_url)) {
+        await deleteImage(bin.image_url);
+      }
       saveLocalAuditEntry('DELETE_BIN', `Deleted bin: ${bin.name}`);
     }
 
@@ -538,7 +570,11 @@ export async function batchManageItems(binId, action, itemIds, targetBinId = nul
       setLocalTable('local_items', updated);
     } else if (action === 'delete') {
       const toDelete = items.filter(i => itemIds.includes(i.id));
-      toDelete.forEach(i => quarantineImageUrl(i.image_url));
+      for (const i of toDelete) {
+        if (isImageRef(i.image_url)) {
+          await deleteImage(i.image_url);
+        }
+      }
       setLocalTable('local_items', items.filter(i => !itemIds.includes(i.id)));
     }
 
@@ -568,19 +604,20 @@ export async function updateItem(id, fields, imageFile = null) {
     let image_url = items[idx].image_url;
 
     if (imageFile) {
-      quarantineImageUrl(image_url);
-      image_url = await fileToDataURL(imageFile);
-      if (image_url) {
-        image_url = embedLocalImageMetadata(image_url, {
-          app: 'smart-inventory',
-          owner: 'dion',
-          entity_type: 'item',
-          entity_id: id,
-          entity_name: (fields.name || items[idx].name).trim(),
-          bin_id: items[idx].bin_id,
-          created_at: items[idx].created_at
-        });
+      if (isImageRef(image_url)) {
+        await deleteImage(image_url);
       }
+      // Convert new image and embed metadata
+      const processed = await embedLocalImageMetadata(imageFile, {
+        app: 'smart-inventory',
+        owner: 'dion',
+        entity_type: 'item',
+        entity_id: id,
+        entity_name: (fields.name || items[idx].name).trim(),
+        bin_id: items[idx].bin_id,
+        created_at: items[idx].created_at
+      });
+      image_url = await storeImage(processed);
     }
 
     items[idx] = {
@@ -621,7 +658,9 @@ export async function deleteItem(id) {
     const items = getLocalTable('local_items');
     const item = items.find(i => i.id === id);
     if (item) {
-      quarantineImageUrl(item.image_url);
+      if (isImageRef(item.image_url)) {
+        await deleteImage(item.image_url);
+      }
       saveLocalAuditEntry('DELETE_ITEM', `Deleted item: ${item.name}`);
     }
     setLocalTable('local_items', items.filter(i => i.id !== id));
@@ -944,7 +983,9 @@ export async function batchDeleteBins(binIds) {
     for (const id of binIds) {
       const bin = bins.find(b => b.id === id);
       if (bin) {
-        quarantineImageUrl(bin.image_url);
+        if (isImageRef(bin.image_url)) {
+          await deleteImage(bin.image_url);
+        }
         deletedNames.push(bin.name);
       }
     }
@@ -1004,7 +1045,11 @@ export async function batchDeleteItems(itemIds) {
   if (isLocalOnly()) {
     const items = getLocalTable('local_items');
     const toDelete = items.filter(i => itemIds.includes(i.id));
-    toDelete.forEach(i => quarantineImageUrl(i.image_url));
+    for (const i of toDelete) {
+      if (isImageRef(i.image_url)) {
+        await deleteImage(i.image_url);
+      }
+    }
     setLocalTable('local_items', items.filter(i => !itemIds.includes(i.id)));
 
     const names = toDelete.map(i => i.name).join(', ');

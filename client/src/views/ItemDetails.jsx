@@ -3,6 +3,7 @@ import {
   ArrowLeft, Package, MapPin, Tag, RefreshCw, Eye, Edit, Trash2, MoreHorizontal
 } from 'lucide-react';
 import { searchItems, getBin, deleteItem } from '../services/storage';
+import useImageSrc from '../hooks/useImageSrc';
 
 export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }) {
   const [item, setItem] = useState(null);
@@ -13,6 +14,7 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
   const [deleting, setDeleting] = useState(false);
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const overflowMenuRef = useRef(null);
+  const itemImageSrc = useImageSrc(item?.image_url);
 
   useEffect(() => {
     if (!itemId) {
@@ -171,12 +173,13 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
         </div>
       </div>
 
+
       {/* Item hero card */}
       <div className="glass-panel rounded-3xl overflow-hidden shadow-2xl relative flex flex-col md:flex-row">
         {/* Left side/top: Photo */}
         <div className="w-full md:w-1/3 aspect-video md:aspect-auto md:min-h-[160px] bg-slate-900 flex items-center justify-center relative border-b md:border-b-0 md:border-r border-slate-800/60">
-          {item.image_url ? (
-            <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
+          {itemImageSrc ? (
+            <img src={itemImageSrc} alt={item.name} className="w-full h-full object-cover" />
           ) : (
             <Package className="w-12 h-12 text-slate-700 stroke-1" />
           )}

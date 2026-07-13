@@ -1,7 +1,13 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import { Box, Package, MapPin, Tag, CheckSquare, Square } from 'lucide-react';
+import useImageSrc from '../hooks/useImageSrc';
 
 const OBSERVER_MARGIN = '150px';
+
+function EntityImage({ url, alt, className }) {
+  const src = useImageSrc(url);
+  return src ? <img src={src} alt={alt} className={className} loading="lazy" /> : null;
+}
 
 function EntityList({
   entities = [],
@@ -173,11 +179,10 @@ function EntityList({
             <>
               <div className="relative h-[110px] bg-slate-900 flex items-center justify-center overflow-hidden">
                 {entry.image_url ? (
-                  <img
-                    src={entry.image_url}
+                  <EntityImage
+                    url={entry.image_url}
                     alt={entry.name}
                     className="w-full h-full object-cover"
-                    loading="lazy"
                   />
                 ) : (
                   renderTypeIcon(entry.type, 'w-10 h-10 text-slate-750 stroke-1')
@@ -198,16 +203,15 @@ function EntityList({
             <>
               <div>
                 <div className="relative h-[140px] bg-slate-900 flex items-center justify-center overflow-hidden group">
-                  {entry.image_url ? (
-                    <img
-                      src={entry.image_url}
-                      alt={entry.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      loading="lazy"
-                    />
-                  ) : (
-                    renderTypeIcon(entry.type, 'w-10 h-10 text-slate-700 stroke-1')
-                  )}
+                {entry.image_url ? (
+                  <EntityImage
+                    url={entry.image_url}
+                    alt={entry.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                ) : (
+                  renderTypeIcon(entry.type, 'w-10 h-10 text-slate-700 stroke-1')
+                )}
                   <button
                     onClick={handleEntryClick(entry)}
                     className="absolute bottom-2 left-2 right-2 px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-950 border border-slate-800/50 text-[10px] text-slate-300 flex items-center justify-between transition-colors shadow-lg"
@@ -273,11 +277,10 @@ function EntityList({
             {renderCheckbox(entry)}
             <div className="w-12 h-12 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center overflow-hidden shrink-0">
               {entry.image_url ? (
-                <img
-                  src={entry.image_url}
+                <EntityImage
+                  url={entry.image_url}
                   alt={entry.name}
                   className="w-full h-full object-cover"
-                  loading="lazy"
                 />
               ) : (
                 renderTypeIcon(entry.type, 'w-5 h-5 text-slate-700 stroke-1')
@@ -358,11 +361,10 @@ function EntityList({
             </div>
           )}
           {entry.image_url ? (
-            <img
-              src={entry.image_url}
+            <EntityImage
+              url={entry.image_url}
               alt={entry.name}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-              loading="lazy"
             />
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center text-slate-600 gap-1.5 bg-slate-950/20 animate-pulse">
