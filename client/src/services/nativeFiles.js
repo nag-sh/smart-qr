@@ -1,6 +1,5 @@
 import { isNative } from '../utils/platform.js';
-
-const BACKUP_FOLDER = 'SmartQR';
+import { SaveAs } from '../plugins/saveAs.js';
 
 function triggerWebDownload(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -27,42 +26,39 @@ function blobToBase64(blob) {
 }
 
 /**
- * Save a backup blob to the device. On native platforms the file is written to
- * Documents/SmartQR and the Android share sheet is opened. On web the standard
- * <a download> fallback is used. If the native Filesystem/Share flow fails for
- * any reason (e.g. missing permissions), the web download fallback is used.
+ * Save a backup blob to the device using the native "Save as" picker on Android,
+ * or the standard <a download> fallback on web.
  */
-export async function saveBackup(blob, filename) {
+export async function saveBackup(blob, filename, mimeType = 'application/zip') {
+  const base64 = await blobToBase64(blob);
   if (!isNative()) {
     triggerWebDownload(blob, filename);
     return;
   }
 
   try {
-    const { Filesystem, Directory } = await import('@capacitor/filesystem');
-    const { Share } = await import('@capacitor/share');
-
-    await Filesystem.mkdir({
-      path: BACKUP_FOLDER,
-      directory: Directory.Documents,
-      recursive: true
-    });
-
-    const base64 = await blobToBase64(blob);
-    const result = await Filesystem.writeFile({
-      path: `${BACKUP_FOLDER}/${filename}`,
-      data: base64,
-      directory: Directory.Documents,
-      encoding: 'base64',
-      recursive: true
-    });
-
-    await Share.share({
-      files: [result.uri]
-    });
+    await SaveAs.saveFile({ filename, data: base64, mimeType });
   } catch (err) {
-    console.error('Native backup save failed, falling back to web download:', err);
+    console.error('Native save-as failed, falling back to web download:', err);
     triggerWebDownload(blob, filename);
+  }
+}
+
+/**
+ * Share a backup blob via the native Android share sheet.
+ */
+export async function shareBackup(blob, filename, mimeType = 'application/zip') {
+  if (!isNative()) {
+    alert('Sharing files is not available in the browser.');
+    return;
+  }
+
+  const base64 = await blobToBase64(blob);
+  try {
+    await SaveAs.shareFile({ filename, data: base64, mimeType });
+  } catch (err) {
+    console.error('Native share failed:', err);
+    alert('Failed to share backup: ' + (err?.message || 'Unknown error'));
   }
 }
 

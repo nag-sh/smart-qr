@@ -1,5 +1,6 @@
 package sh.nag.smartqr;
 
+import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.Bridge;
 import com.getcapacitor.BridgeWebChromeClient;
@@ -7,6 +8,13 @@ import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 
 public class MainActivity extends BridgeActivity {
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(PrintPlugin.class);
+        registerPlugin(SaveAsPlugin.class);
+        super.onCreate(savedInstanceState);
+    }
+
     @Override
     protected void load() {
         super.load();
