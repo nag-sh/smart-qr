@@ -862,6 +862,7 @@ export async function exportBackup(res, includeImages = true) {
       if (fs.existsSync(fullPath)) {
         return { path: fullPath, ext: getFileExtension(filename) };
       }
+      console.warn(`[export] image file missing on disk, skipped from backup: ${imageUrl}`);
       return null;
     }
     if (imageUrl.startsWith('data:')) {
@@ -872,8 +873,10 @@ export async function exportBackup(res, includeImages = true) {
       if (fs.existsSync(fullPath)) {
         return { path: fullPath, ext: getFileExtension(filename) };
       }
+      console.warn('[export] data-url image could not be written to disk, skipped from backup');
       return null;
     }
+    console.warn(`[export] unsupported image reference, skipped from backup: ${imageUrl}`);
     return null;
   };
 

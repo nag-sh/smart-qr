@@ -10,7 +10,7 @@ import {
   localRecordsForSync, localRecordsFromSync
 } from '../services/storage';
 import {
-  slugify, planImagePath, getImageBlob, storeImage, isImageRef, EXT_FROM_TYPE
+  slugify, planImagePath, getImageBlob, storeImage, isImageRef, EXT_FROM_TYPE, dataURLToBlob
 } from '../services/localImages';
 import JSZip from 'jszip';
 
@@ -251,41 +251,37 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
       const usedSet = new Set();
       const binMap = new Map(bins.map(b => [b.id, b]));
 
+      const exportImage = async (record) => {
+        if (!includeImages) return null;
+        const raw = record.image_url;
+        if (typeof raw !== 'string' || !raw) return null;
+        let blob = null;
+        if (isImageRef(raw)) {
+          blob = await getImageBlob(raw);
+        } else if (raw.startsWith('data:')) {
+          blob = dataURLToBlob(raw);
+        }
+        if (!blob) return null;
+        const bin = record.bin_id ? binMap.get(record.bin_id) : record;
+        const locSlug = slugify(bin?.location, 'unsorted-location');
+        const binSlug = slugify(bin?.name, bin?.id ?? 'unknown-bin');
+        const fileSlug = record.bin_id ? slugify(record.name, record.id) : 'bin';
+        const ext = EXT_FROM_TYPE[blob.type] || 'bin';
+        const base = `images/${locSlug}/${binSlug}/${fileSlug}.${ext}`;
+        const imagePath = planImagePath(base, usedSet);
+        zip.file(imagePath, blob);
+        return imagePath;
+      };
+
       const rewrittenBins = [];
       for (const bin of bins) {
-        let image_url = bin.image_url;
-        if (isImageRef(image_url)) {
-          const blob = await getImageBlob(image_url);
-          if (blob) {
-            const locSlug = slugify(bin.location, 'unsorted-location');
-            const binSlug = slugify(bin.name, bin.id);
-            const ext = EXT_FROM_TYPE[blob.type] || 'bin';
-            const base = `images/${locSlug}/${binSlug}/bin.${ext}`;
-            const path = planImagePath(base, usedSet);
-            zip.file(path, blob);
-            image_url = path;
-          }
-        }
+        const image_url = await exportImage(bin);
         rewrittenBins.push({ ...bin, image_url });
       }
 
       const rewrittenItems = [];
       for (const item of items) {
-        let image_url = item.image_url;
-        if (isImageRef(image_url)) {
-          const blob = await getImageBlob(image_url);
-          if (blob) {
-            const bin = binMap.get(item.bin_id);
-            const locSlug = slugify(bin?.location, 'unsorted-location');
-            const binSlug = slugify(bin?.name, bin?.id ?? 'unknown-bin');
-            const itemSlug = slugify(item.name, item.id);
-            const ext = EXT_FROM_TYPE[blob.type] || 'bin';
-            const base = `images/${locSlug}/${binSlug}/${itemSlug}.${ext}`;
-            const path = planImagePath(base, usedSet);
-            zip.file(path, blob);
-            image_url = path;
-          }
-        }
+        const image_url = await exportImage(item);
         rewrittenItems.push({ ...item, image_url });
       }
 
@@ -756,8 +752,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
               )}
             </div>
 
-            {storageMode === 'server' && (
-              <label className="flex items-start gap-3 p-3 rounded-xl bg-slate-900/50 border border-slate-800/60 cursor-pointer select-none group">
+            <label className="flex items-start gap-3 p-3 rounded-xl bg-slate-900/50 border border-slate-800/60 cursor-pointer select-none group">
                 <div className="relative mt-0.5">
                   <input
                     type="checkbox"
@@ -784,7 +779,6 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
                   </span>
                 </div>
               </label>
-            )}
           </div>
 
           {/* Import Backup utilities */}
