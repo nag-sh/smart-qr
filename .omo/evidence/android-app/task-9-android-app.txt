@@ -1,0 +1,189 @@
+Task 9 — Add signed release APK workflow and keystore handling
+
+Evidence captured: workflow file, sync script, signing config block, and validation notes.
+
+================================================================================
+1. .github/workflows/android-release.yml
+================================================================================
+
+name: Android Release APK
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build-release-apk:
+    name: Build Android Release APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derive version from tag
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          cd client
+          npm version --no-git-tag-version "$VERSION"
+
+      - name: Sync Android version
+        run: node scripts/sync-android-version.js
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install client dependencies
+        working-directory: client
+        run: npm ci
+
+      - name: Build mobile web assets
+        working-directory: client
+        run: npm run build:mobile
+
+      - name: Sync Capacitor Android project
+        working-directory: client
+        run: npx cap sync android
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          accept-android-licenses: true
+
+      - name: Decode release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "ERROR: KEYSTORE_BASE64 secret is empty." >&2
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > client/android/app/smartqr-release.keystore
+
+      - name: Assemble release APK
+        working-directory: client/android
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: chmod +x ./gradlew && ./gradlew assembleRelease
+
+      - name: Create GitHub release with APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: '**/android/app/build/outputs/apk/release/*.apk'
+
+================================================================================
+2. scripts/sync-android-version.js
+================================================================================
+
+#!/usr/bin/env node
+/**
+ * Sync Android version from client/package.json into client/android/app/build.gradle.
+ *
+ * versionName is taken directly from package.json (e.g. "1.2.3").
+ * versionCode is derived as a stable, monotonic integer from the version:
+ *   major * 10000 + minor * 100 + patch
+ * This yields a 6-digit code that increases with every semver release while
+ * staying well below Android's 2,147,483,647 versionCode limit.
+ */
+
+const { readFileSync, writeFileSync } = require('node:fs');
+const { resolve } = require('node:path');
+
+const ROOT = process.cwd();
+const PACKAGE_JSON_PATH = resolve(ROOT, 'client/package.json');
+const BUILD_GRADLE_PATH = resolve(ROOT, 'client/android/app/build.gradle');
+
+const pkg = JSON.parse(readFileSync(PACKAGE_JSON_PATH, 'utf8'));
+const version = pkg.version;
+
+if (typeof version !== 'string' || !/^\d+\.\d+\.\d+/.test(version)) {
+  console.error(`ERROR: client/package.json has invalid version: ${version}`);
+  process.exit(1);
+}
+
+const [major, minor, patch] = version.split('.').map(Number);
+const versionCode = major * 10_000 + minor * 100 + patch;
+
+let gradle = readFileSync(BUILD_GRADLE_PATH, 'utf8');
+
+const versionNameRegex = /versionName\s+"[^"]*"/;
+const versionCodeRegex = /versionCode\s+\d+/;
+
+if (!versionNameRegex.test(gradle)) {
+  // Add versionName inside defaultConfig if it is missing.
+  gradle = gradle.replace(
+    /defaultConfig\s*\{/,
+    `defaultConfig {\n        versionName "${version}"`
+  );
+} else {
+  gradle = gradle.replace(versionNameRegex, `versionName "${version}"`);
+}
+
+if (!versionCodeRegex.test(gradle)) {
+  // Add versionCode inside defaultConfig if it is missing.
+  gradle = gradle.replace(
+    /defaultConfig\s*\{/,
+    `defaultConfig {\n        versionCode ${versionCode}`
+  );
+} else {
+  gradle = gradle.replace(versionCodeRegex, `versionCode ${versionCode}`);
+}
+
+writeFileSync(BUILD_GRADLE_PATH, gradle, 'utf8');
+console.log(`Synced Android version: versionName "${version}", versionCode ${versionCode}`);
+
+================================================================================
+3. client/android/app/build.gradle signing block
+================================================================================
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
+    }
+    signingConfigs {
+        release {
+            storeFile file("smartqr-release.keystore")
+            storePassword System.getenv("KEYSTORE_PASSWORD")
+            keyAlias System.getenv("KEY_ALIAS")
+            keyPassword System.getenv("KEY_PASSWORD")
+        }
+    }
+
+================================================================================
+4. Validation notes
+================================================================================
+
+- `node scripts/sync-android-version.js` was run locally and successfully updated
+  client/android/app/build.gradle: versionName "1.0.0" and versionCode 10000.
+- The release workflow YAML was validated with Python's yaml parser.
+- `actionlint` was not available via npx in this environment, so the YAML was
+  checked for syntax validity only.
+- The Android SDK / Android build-tools are not installed in this local
+  environment, so a full `./gradlew assembleRelease` cannot be run here. The
+  workflow is intended to run on GitHub Actions with the Android SDK installed.
+- In CI the signed APK can be verified with `apksigner verify`:
+  `apksigner verify client/android/app/build/outputs/apk/release/app-release.apk`
+  (this step is not currently added to the workflow but is the standard way to
+  confirm the APK is signed).
+- The release keystore file (smartqr-release.keystore) is generated/decoded at
+  build time and is never committed to the repository.

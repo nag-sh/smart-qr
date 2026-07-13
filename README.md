@@ -141,6 +141,8 @@ The GitHub Actions release workflow expects the following repository secrets:
 
 Set these in **Settings → Secrets and variables → Actions** before running a release workflow that signs an APK/AAB.
 
+Pushing a Git tag matching `v*` (for example `git tag v1.2.3 && git push origin v1.2.3`) triggers `.github/workflows/android-release.yml`, which builds the signed release APK and attaches it to a GitHub release for that tag.
+
 ## Data & persistence
 
 - `server/inventory.db*` — SQLite database (runtime; not committed)
