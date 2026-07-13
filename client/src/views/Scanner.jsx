@@ -23,6 +23,7 @@ export default function Scanner({ onNavigate, onBack }) {
   const [manualQr, setManualQr] = useState('');
   const [loading, setLoading] = useState(false);
   const html5QrCodeRef = useRef(null);
+  const startingRef = useRef(false);
 
   useEffect(() => {
     html5QrCodeRef.current = new Html5Qrcode('scanner-viewport');
@@ -40,20 +41,28 @@ export default function Scanner({ onNavigate, onBack }) {
   }, [manualMode]);
 
   const startScanner = async () => {
+    if (startingRef.current) return;
+    startingRef.current = true;
     setError('');
     setScanResult('');
     try {
-      if (html5QrCodeRef.current) {
-        if (html5QrCodeRef.current.isScanning) {
-          await html5QrCodeRef.current.stop();
+      const qr = html5QrCodeRef.current;
+      if (qr) {
+        if (qr.isScanning) {
+          await qr.stop();
         }
-        await html5QrCodeRef.current.start(
-          { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+        await qr.start(
+          { facingMode: 'environment' },
           {
             fps: 10,
             qrbox: (width, height) => {
               const size = Math.min(width, height) * 0.65;
               return { width: size, height: size };
+            },
+            videoConstraints: {
+              facingMode: 'environment',
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
             },
           },
           (decodedText) => {
@@ -67,6 +76,15 @@ export default function Scanner({ onNavigate, onBack }) {
       console.error('Failed to start scanning:', err);
       setIsScanning(false);
       setError('Could not access camera. Please ensure camera permission is granted.');
+      try {
+        if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+          await html5QrCodeRef.current.stop();
+        }
+      } catch (e) {
+        /* ignore reset errors */
+      }
+    } finally {
+      startingRef.current = false;
     }
   };
 
