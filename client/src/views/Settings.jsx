@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Key, Eye, EyeOff, Save, CheckCircle2, AlertTriangle, 
   ExternalLink, FileJson, Download, Upload, Server,
-  RefreshCw, ArrowDownToLine, ArrowUpFromLine, History, ArrowRight, ArrowLeft, Cloud
+  RefreshCw, ArrowDownToLine, ArrowUpFromLine, History, ArrowRight, ArrowLeft, Cloud, Share2
 } from 'lucide-react';
 import { isNative } from '../utils/platform.js';
 import { 
@@ -13,7 +13,7 @@ import {
 import {
   slugify, planImagePath, getImageBlob, storeImage, isImageRef, EXT_FROM_TYPE, dataURLToBlob
 } from '../services/localImages';
-import { saveBackup, pickBackup } from '../services/nativeFiles';
+import { saveBackup, shareBackup, pickBackup } from '../services/nativeFiles';
 import JSZip from 'jszip';
 
 export default function Settings({ onNavigate, onBack, modalTypes }) {
@@ -254,59 +254,75 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
     }
   };
 
+  const generateExportZip = async () => {
+    const { bins, items } = await getLocalExportData();
+    const zip = new JSZip();
+    const usedSet = new Set();
+    const binMap = new Map(bins.map(b => [b.id, b]));
+
+    const exportImage = async (record) => {
+      if (!includeImages) return null;
+      const raw = record.image_url;
+      if (typeof raw !== 'string' || !raw) return null;
+      let blob = null;
+      if (isImageRef(raw)) {
+        blob = await getImageBlob(raw);
+      } else if (raw.startsWith('data:')) {
+        blob = dataURLToBlob(raw);
+      }
+      if (!blob) return null;
+      const bin = record.bin_id ? binMap.get(record.bin_id) : record;
+      const locSlug = slugify(bin?.location, 'unsorted-location');
+      const binSlug = slugify(bin?.name, bin?.id ?? 'unknown-bin');
+      const fileSlug = record.bin_id ? slugify(record.name, record.id) : 'bin';
+      const ext = EXT_FROM_TYPE[blob.type] || 'bin';
+      const base = `images/${locSlug}/${binSlug}/${fileSlug}.${ext}`;
+      const imagePath = planImagePath(base, usedSet);
+      zip.file(imagePath, blob);
+      return imagePath;
+    };
+
+    const rewrittenBins = [];
+    for (const bin of bins) {
+      const image_url = await exportImage(bin);
+      rewrittenBins.push({ ...bin, image_url });
+    }
+
+    const rewrittenItems = [];
+    for (const item of items) {
+      const image_url = await exportImage(item);
+      rewrittenItems.push({ ...item, image_url });
+    }
+
+    zip.file('inventory.json', JSON.stringify({
+      exported_at: new Date().toISOString(),
+      owner: 'dion',
+      image_layout: 'images/<location>/<bin>/<item>.*',
+      bins: rewrittenBins,
+      items: rewrittenItems
+    }, null, 2));
+
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    const filename = `smart_inventory_backup_${new Date().toISOString().slice(0, 10)}.zip`;
+    return { zipBlob, filename };
+  };
+
   const handleLocalExport = async (e) => {
     e.preventDefault();
     try {
-      const { bins, items } = await getLocalExportData();
-      const zip = new JSZip();
-      const usedSet = new Set();
-      const binMap = new Map(bins.map(b => [b.id, b]));
-
-      const exportImage = async (record) => {
-        if (!includeImages) return null;
-        const raw = record.image_url;
-        if (typeof raw !== 'string' || !raw) return null;
-        let blob = null;
-        if (isImageRef(raw)) {
-          blob = await getImageBlob(raw);
-        } else if (raw.startsWith('data:')) {
-          blob = dataURLToBlob(raw);
-        }
-        if (!blob) return null;
-        const bin = record.bin_id ? binMap.get(record.bin_id) : record;
-        const locSlug = slugify(bin?.location, 'unsorted-location');
-        const binSlug = slugify(bin?.name, bin?.id ?? 'unknown-bin');
-        const fileSlug = record.bin_id ? slugify(record.name, record.id) : 'bin';
-        const ext = EXT_FROM_TYPE[blob.type] || 'bin';
-        const base = `images/${locSlug}/${binSlug}/${fileSlug}.${ext}`;
-        const imagePath = planImagePath(base, usedSet);
-        zip.file(imagePath, blob);
-        return imagePath;
-      };
-
-      const rewrittenBins = [];
-      for (const bin of bins) {
-        const image_url = await exportImage(bin);
-        rewrittenBins.push({ ...bin, image_url });
-      }
-
-      const rewrittenItems = [];
-      for (const item of items) {
-        const image_url = await exportImage(item);
-        rewrittenItems.push({ ...item, image_url });
-      }
-
-      zip.file('inventory.json', JSON.stringify({
-        exported_at: new Date().toISOString(),
-        owner: 'dion',
-        image_layout: 'images/<location>/<bin>/<item>.*',
-        bins: rewrittenBins,
-        items: rewrittenItems
-      }, null, 2));
-
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      const filename = `smart_inventory_backup_${new Date().toISOString().slice(0, 10)}.zip`;
+      const { zipBlob, filename } = await generateExportZip();
       await saveBackup(zipBlob, filename);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to generate local export file.');
+    }
+  };
+
+  const handleShareExport = async (e) => {
+    e.preventDefault();
+    try {
+      const { zipBlob, filename } = await generateExportZip();
+      await shareBackup(zipBlob, filename);
     } catch (err) {
       console.error(err);
       alert('Failed to generate local export file.');
@@ -775,21 +791,40 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
                   <Download className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-200 transition-colors" />
                 </a>
               ) : (
-                <button
-                  onClick={handleLocalExport}
-                  className="p-3 rounded-xl glass-card border border-slate-800/60 flex items-center justify-between hover:border-pink-500/30 transition-all text-left group cursor-pointer w-full sm:col-span-2"
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 bg-pink-500/10 rounded-lg text-pink-400">
-                      <FileJson className="w-4 h-4" />
+                <>
+                  <button
+                    onClick={handleLocalExport}
+                    className="p-3 rounded-xl glass-card border border-slate-800/60 flex items-center justify-between hover:border-pink-500/30 transition-all text-left group cursor-pointer w-full"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 bg-pink-500/10 rounded-lg text-pink-400">
+                        <Download className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="block text-xs font-bold text-slate-200 group-hover:text-pink-300">Save As (.zip)</span>
+                        <span className="block text-[9px] text-slate-500">Choose download location</span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="block text-xs font-bold text-slate-200 group-hover:text-pink-300">ZIP Export</span>
-                      <span className="block text-[9px] text-slate-500">Local browser export</span>
-                    </div>
-                  </div>
-                  <Download className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-200 transition-colors" />
-                </button>
+                    <Download className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-200 transition-colors" />
+                  </button>
+                  {isNativePlatform && (
+                    <button
+                      onClick={handleShareExport}
+                      className="p-3 rounded-xl glass-card border border-slate-800/60 flex items-center justify-between hover:border-purple-500/30 transition-all text-left group cursor-pointer w-full"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 bg-purple-500/10 rounded-lg text-purple-400">
+                          <Share2 className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="block text-xs font-bold text-slate-200 group-hover:text-purple-300">Share (.zip)</span>
+                          <span className="block text-[9px] text-slate-500">Send to another app</span>
+                        </div>
+                      </div>
+                      <Share2 className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-200 transition-colors" />
+                    </button>
+                  )}
+                </>
               )}
             </div>
 

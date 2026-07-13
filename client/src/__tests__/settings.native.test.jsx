@@ -14,6 +14,10 @@ vi.mock('@capacitor/core', () => ({
   Capacitor: {
     isNativePlatform,
   },
+  registerPlugin: vi.fn(() => ({
+    saveFile: vi.fn(),
+    shareFile: vi.fn(),
+  })),
 }));
 
 import Settings from '../views/Settings';
