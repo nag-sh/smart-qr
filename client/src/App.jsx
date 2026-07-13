@@ -9,6 +9,7 @@ import Scanner from './views/Scanner';
 import CreateBin from './views/CreateBin';
 import BinDetails from './views/BinDetails';
 import ItemDetails from './views/ItemDetails';
+import EditItem from './views/EditItem';
 import AddItem from './views/AddItem';
 import Settings from './views/Settings';
 import RestorePoints from './views/RestorePoints';
@@ -148,7 +149,8 @@ function AppContent() {
         case 'scanner': view = <Scanner onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
         case 'create-bin': view = <CreateBin qrId={params.qrId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} refreshNonce={refreshNonce} />; break;
         case 'bin-details': view = <BinDetails binId={params.binId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
-        case 'item-details': view = <ItemDetails itemId={params.itemId} onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
+        case 'item-details': view = <ItemDetails itemId={params.itemId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
+        case 'edit-item': view = <EditItem itemId={params.itemId} onBack={onBack} refreshNonce={refreshNonce} />; break;
         case 'add-item': view = <AddItem binId={params.binId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
         case 'settings': view = <Settings onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
         case 'restore-points': view = <RestorePoints onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
