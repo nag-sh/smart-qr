@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, useSearchParams, useNavigate } from 'react-router-dom';
 import { parseModalStack, stackToSearchString, dedupeStack } from './modalStack.js';
+import { useEdgeGestures } from './hooks/useEdgeGestures.js';
 import { QrCode, Settings as SettingsIcon, Printer, Info, ArrowLeft, Plus, Search as SearchIcon } from 'lucide-react';
 
 // Import Views
@@ -127,6 +128,11 @@ function AppContent() {
     }
   };
 
+  const filtersOpen = modalTypes.includes('filters');
+  const onSearchScreen = stack.length === 0;
+  const rootRef = useRef(null);
+  useEdgeGestures(rootRef, { onBack, onOpenFilters: () => onNavigate('filters'), filtersOpen, onSearchScreen });
+
   // central printing trigger
   const handlePrintBin = (qrId, binName) => {
     setPrintData({ qr_id: qrId, name: binName });
@@ -168,7 +174,7 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 pb-28 text-slate-100 flex flex-col justify-between">
+    <div ref={rootRef} className="min-h-screen bg-slate-950 pb-28 text-slate-100 flex flex-col justify-between">
       {/* Main Content Area — Search is always the base view */}
       <main className="flex-1 w-full max-w-4xl mx-auto px-2">
         <Search onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} />
