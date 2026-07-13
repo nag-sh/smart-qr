@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, useSearchParams, useNavigate } from 'react-router-dom';
 import { parseModalStack, stackToSearchString, dedupeStack } from './modalStack.js';
+import { Capacitor } from '@capacitor/core';
 import { useEdgeGestures } from './hooks/useEdgeGestures.js';
-import { QrCode, Settings as SettingsIcon, Printer, Info, ArrowLeft, Plus, Search as SearchIcon } from 'lucide-react';
+import { Print } from './plugins/print.js';
+import { QrCode, Settings as SettingsIcon, Printer, Info, ArrowLeft, Plus, Search as SearchIcon, AlertTriangle } from 'lucide-react';
 
 // Import Views
 import Search from './views/Search';
@@ -14,6 +16,8 @@ import EditItem from './views/EditItem';
 import AddItem from './views/AddItem';
 import Settings from './views/Settings';
 import RestorePoints from './views/RestorePoints';
+import PrintRandomized from './views/PrintRandomized';
+import QRCode from 'qrcode';
 
 // ─── Glassy modal shell (rendered above Search + bottom nav) ───────────────
 function ModalShell({ onClose, hideClose = false, children }) {
@@ -46,6 +50,8 @@ function AppContent() {
   const [printData, setPrintData] = useState(null); // { qr_id, name }
   const [showPrintHelper, setShowPrintHelper] = useState(false);
   const [printCountdown, setPrintCountdown] = useState(5);
+  const [printError, setPrintError] = useState('');
+  const [randomPrintData, setRandomPrintData] = useState(null); // { codes: string[], perPage: number }
 
   // Modal stack: derived from the URL (?modal=...&...) so it is linkable/layered
   const [searchParams] = useSearchParams();
@@ -65,8 +71,9 @@ function AppContent() {
         setPrintCountdown((prev) => {
           if (prev <= 1) {
             clearInterval(interval);
-            setShowPrintHelper(false);
-            setPrintData(null);
+            if (!printError) {
+              setShowPrintHelper(false);
+            }
             return 0;
           }
           return prev - 1;
@@ -76,7 +83,22 @@ function AppContent() {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [showPrintHelper]);
+  }, [showPrintHelper, printError]);
+
+  // Android's print adapter rasterizes the final page only after the user
+  // confirms in the system dialog, so the print DOM must outlive print(). The
+  // native side emits 'printComplete' on a terminal job state; clear the
+  // (hidden) print containers then. Without this, the page prints blank.
+  useEffect(() => {
+    const listener = Print.addListener('printComplete', () => {
+      setRandomPrintData(null);
+      setPrintData(null);
+      setShowPrintHelper(false);
+    });
+    return () => {
+      listener.then((handle) => handle.remove());
+    };
+  }, []);
 
   // How many modal layers this session pushed onto history. The in-app back
   // button pops during normal navigation, but falls back to the parent stack URL
@@ -86,7 +108,11 @@ function AppContent() {
 
   const onNavigate = (viewName, params = {}) => {
     if (viewName === 'search') {
-      navigate('/');
+      if (params.location) {
+        navigate('/?filterLocation=' + encodeURIComponent(params.location));
+      } else {
+        navigate('/');
+      }
       window.scrollTo({ top: 0, behavior: 'instant' });
       return;
     }
@@ -133,12 +159,81 @@ function AppContent() {
 
   // central printing trigger
   const handlePrintBin = (qrId, binName) => {
+    // Avoid the two print containers ever coexisting in print media.
+    setRandomPrintData(null);
     setPrintData({ qr_id: qrId, name: binName });
+    setPrintError('');
     setShowPrintHelper(true);
-    // Give browser brief time to draw print-label-only DOM container
-    setTimeout(() => {
-      window.print();
+    // Give the DOM a beat to render the hidden label, then use the native
+    // print path on Android (WebViews don't support window.print) and the
+    // standard browser print dialog everywhere else.
+    setTimeout(async () => {
+      try {
+        if (Capacitor.getPlatform() === 'android') {
+          await Print.print();
+        } else {
+          window.print();
+        }
+      } catch (err) {
+        console.error('Print failed:', err);
+        setPrintError(err?.message || 'Print failed');
+      }
     }, 250);
+  };
+
+  const handlePrintRandom = async (data) => {
+    const { codes, layout } = data;
+    // Avoid the two print containers ever coexisting in print media.
+    setPrintData(null);
+    setRandomPrintData({ dataUrls: [], layout });
+    setPrintError('');
+    setShowPrintHelper(true);
+
+    let dataUrls = [];
+    try {
+      dataUrls = await Promise.all(
+        codes.map((code) =>
+          QRCode.toDataURL(code, { width: 400, margin: 1, errorCorrectionLevel: 'M' })
+        )
+      );
+    } catch (err) {
+      console.error('QR generation failed:', err);
+      setPrintError('Failed to generate QR codes');
+      return;
+    }
+    setRandomPrintData({ dataUrls, layout });
+
+    const waitForImages = () => {
+      const images = Array.from(document.querySelectorAll('.print-random-qr img'));
+      if (images.length === 0) return true;
+      return images.every((img) => img.complete && img.naturalWidth > 0);
+    };
+
+    const startTime = Date.now();
+    const timeout = 6000;
+
+    const check = async () => {
+      if (waitForImages() || Date.now() - startTime > timeout) {
+        try {
+          if (Capacitor.getPlatform() === 'android') {
+            // Do NOT clear here: Android rasterizes the final page after the
+            // print dialog closes, so the DOM must survive until 'printComplete'.
+            await Print.print({ pageSize: layout.pageSize });
+          } else {
+            window.print();
+            setRandomPrintData(null);
+            setShowPrintHelper(false);
+          }
+        } catch (err) {
+          console.error('Print failed:', err);
+          setPrintError(err?.message || 'Print failed');
+        }
+        return;
+      }
+      requestAnimationFrame(check);
+    };
+
+    requestAnimationFrame(check);
   };
 
   const renderModalStack = () => {
@@ -158,11 +253,12 @@ function AppContent() {
         case 'add-item': view = <AddItem binId={params.binId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
         case 'settings': view = <Settings onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
         case 'restore-points': view = <RestorePoints onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
+        case 'print-randomized': view = <PrintRandomized onNavigate={onNavigate} onBack={onBack} onPrintRandom={handlePrintRandom} />; break;
         default: return null;
       }
 
       return (
-        <div key={i} style={{ position: 'fixed', inset: 0, zIndex: 60 + i, pointerEvents: isLast ? 'auto' : 'none' }}>
+        <div key={i} className="no-print" style={{ position: 'fixed', inset: 0, zIndex: 60 + i, pointerEvents: isLast ? 'auto' : 'none' }}>
           <ModalShell onClose={onBack} hideClose={hideClose}>
             {view}
           </ModalShell>
@@ -230,6 +326,7 @@ function AppContent() {
               onClick={() => {
                 setShowPrintHelper(false);
                 setPrintData(null);
+                setPrintError('');
               }}
               className="absolute top-4 left-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
               aria-label="Back to Search"
@@ -248,26 +345,36 @@ function AppContent() {
               </p>
             </div>
 
-            {/* Android Settings printer deep-link fallback */}
-            <div className="bg-slate-900/60 p-3.5 rounded-2xl border border-slate-800/80 space-y-2 text-left">
-              <div className="flex gap-2 text-[10px] text-slate-400 items-start">
-                <Info className="w-3.5 h-3.5 text-pink-400 shrink-0 mt-0.5" />
-                <span>
-                  Having trouble finding your printer? Android users can configure locally networked printer drivers (HP, Mopria, etc.) in System Settings.
-                </span>
+            {printError && (
+              <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-2.5 text-xs text-red-300">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{printError}</span>
               </div>
-              <a
-                href="intent://#Intent;action=android.settings.PRINT_SETTINGS;end"
-                className="w-full py-2.5 rounded-xl border border-slate-700/60 hover:bg-slate-800 text-slate-200 font-bold text-[10px] flex items-center justify-center gap-1 transition-all cursor-pointer shadow-md"
-              >
-                <SettingsIcon className="w-3.5 h-3.5" /> Configure Android Printers
-              </a>
-            </div>
+            )}
+
+            {/* Android Settings printer deep-link fallback */}
+            {Capacitor.getPlatform() === 'android' && (
+              <div className="bg-slate-900/60 p-3.5 rounded-2xl border border-slate-800/80 space-y-2 text-left">
+                <div className="flex gap-2 text-[10px] text-slate-400 items-start">
+                  <Info className="w-3.5 h-3.5 text-pink-400 shrink-0 mt-0.5" />
+                  <span>
+                    Having trouble finding your printer? Configure locally networked printer drivers (HP, Mopria, etc.) in System Settings.
+                  </span>
+                </div>
+                <button
+                  onClick={() => Print.openPrintSettings()}
+                  className="w-full py-2.5 rounded-xl border border-slate-700/60 hover:bg-slate-800 text-slate-200 font-bold text-[10px] flex items-center justify-center gap-1 transition-all cursor-pointer shadow-md"
+                >
+                  <SettingsIcon className="w-3.5 h-3.5" /> Configure Android Printers
+                </button>
+              </div>
+            )}
 
             <button
               onClick={() => {
                 setShowPrintHelper(false);
                 setPrintData(null);
+                setPrintError('');
               }}
               className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 text-xs font-bold transition-all cursor-pointer"
             >
@@ -286,6 +393,61 @@ function AppContent() {
             className="print-qr-code"
           />
           <h1 className="print-bin-name">{printData.name}</h1>
+        </div>
+      )}
+
+      {randomPrintData && randomPrintData.dataUrls.length > 0 && (
+        <div className="print-random-qr hidden">
+          {(() => {
+            const { dataUrls, layout } = randomPrintData;
+            const {
+              pageWidth,
+              pageHeight,
+              cols,
+              rows,
+              labelWidth,
+              labelHeight,
+              marginTop,
+              marginRight,
+              marginBottom,
+              marginLeft,
+              gapX,
+              gapY,
+              perPage,
+            } = layout;
+            const qrSize = Math.max(0.5, Math.min(labelWidth, labelHeight));
+            const pages = [];
+            for (let i = 0; i < dataUrls.length; i += perPage) {
+              pages.push(dataUrls.slice(i, i + perPage));
+            }
+            return pages.map((pageUrls, pi) => (
+              <div
+                key={pi}
+                className="print-page"
+                style={{ width: `${pageWidth}in`, height: `${pageHeight}in` }}
+              >
+                <div
+                  className="print-page-inner"
+                  style={{
+                    gridTemplateColumns: `repeat(${cols}, 1fr)`,
+                    gridTemplateRows: `repeat(${rows}, 1fr)`,
+                    gap: `${gapY}in ${gapX}in`,
+                    padding: `${marginTop}in ${marginRight}in ${marginBottom}in ${marginLeft}in`,
+                  }}
+                >
+                  {pageUrls.map((url, ci) => (
+                    <img
+                      key={ci}
+                      className="print-random-qr-code"
+                      src={url}
+                      alt="QR"
+                      style={{ width: `${qrSize}in`, height: `${qrSize}in` }}
+                    />
+                  ))}
+                </div>
+              </div>
+            ));
+          })()}
         </div>
       )}
     </div>
