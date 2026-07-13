@@ -4,6 +4,7 @@ import {
   Package, Printer, Edit, Trash2, Check, MoreHorizontal,
   FolderTree, LayoutGrid, List, Image as ImageIcon
 } from 'lucide-react';
+import QRCode from 'qrcode';
 import { getBin, getBins, updateBin, deleteBin, batchManageItems } from '../services/storage';
 import imageCompression from 'browser-image-compression';
 import EntityList from '../components/EntityList';
@@ -35,7 +36,22 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
   const [batchWorking, setBatchWorking] = useState(false);
 
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
+  const [showQrView, setShowQrView] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState('');
+  const [copied, setCopied] = useState(false);
   const overflowMenuRef = useRef(null);
+  const qrTextLongPress = useRef(null);
+  const handleQrTextLongPressStart = (e) => {
+    e.stopPropagation();
+    if (qrTextLongPress.current) clearTimeout(qrTextLongPress.current);
+    qrTextLongPress.current = setTimeout(() => {
+      navigator.clipboard?.writeText(bin.qr_id).then(() => setCopied(true)).catch(() => {});
+      qrTextLongPress.current = null;
+    }, 500);
+  };
+  const handleQrTextLongPressEnd = () => {
+    if (qrTextLongPress.current) { clearTimeout(qrTextLongPress.current); qrTextLongPress.current = null; }
+  };
   const binImageSrc = useImageSrc(bin?.image_url);
 
   const fetchLocations = async () => {
@@ -62,6 +78,21 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!showQrView || !bin) return;
+    let cancelled = false;
+    QRCode.toDataURL(bin.qr_id, { width: 480, margin: 2, errorCorrectionLevel: 'M' })
+      .then((url) => { if (!cancelled) setQrDataUrl(url); })
+      .catch(() => { if (!cancelled) setQrDataUrl(''); });
+    return () => { cancelled = true; };
+  }, [showQrView, bin]);
+
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(t);
+  }, [copied]);
 
   useEffect(() => {
     if (binId) {
@@ -215,7 +246,15 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
           <ArrowLeft className="w-5 h-5" />
         </button>
         
-        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowQrView(true)}
+              className="text-xs px-3 py-2 rounded-lg bg-slate-800 border border-slate-700/50 text-slate-400 font-mono flex items-center gap-1.5 hover:bg-slate-700 hover:text-slate-200 transition-colors cursor-pointer"
+              title="View QR code"
+            >
+              <QrCode className="w-3.5 h-3.5 text-purple-400" /> {bin.qr_id.length > 16 ? bin.qr_id.slice(0, 16) + '...' : bin.qr_id}
+            </button>
           <div className="relative" ref={overflowMenuRef}>
             <button
               onClick={() => setShowOverflowMenu(prev => !prev)}
@@ -258,9 +297,6 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
               </div>
             )}
           </div>
-          <span className="text-xs px-3 py-2 rounded-lg bg-slate-800 border border-slate-700/50 text-slate-400 font-mono flex items-center gap-1.5">
-            <QrCode className="w-3.5 h-3.5 text-purple-400" /> {bin.qr_id.length > 16 ? bin.qr_id.slice(0, 16) + '...' : bin.qr_id}
-          </span>
         </div>
       </div>
 
@@ -400,28 +436,32 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
           </div>
         </div>
       ) : (
-        <div className="glass-panel rounded-3xl overflow-hidden shadow-2xl relative flex flex-col md:flex-row">
+        <div className="glass-panel rounded-3xl overflow-hidden shadow-2xl relative flex flex-wrap items-start">
           {/* Left side/top: Photo */}
-          <div className="w-full md:w-1/3 aspect-video md:aspect-auto md:min-h-[160px] bg-slate-900 flex items-center justify-center relative border-b md:border-b-0 md:border-r border-slate-800/60">
+          <div className="relative h-[25vh] max-h-[25vh] w-auto min-w-[160px] md:min-w-[200px] bg-slate-900 flex items-center justify-center border-b md:border-b-0 md:border-r border-slate-800/60 overflow-hidden shrink-0">
           {binImageSrc ? (
-            <img src={binImageSrc} alt={bin.name} className="w-full h-full object-cover" />
+            <img src={binImageSrc} alt={bin.name} className="h-[25vh] w-auto object-cover" />
           ) : (
             <Box className="w-12 h-12 text-slate-700 stroke-1" />
           )}
           </div>
 
           {/* Right side/details */}
-          <div className="p-6 flex-1 flex flex-col justify-between relative">
+          <div className="p-6 flex-1 flex flex-col justify-between relative min-w-[260px]">
             <div className="space-y-3">
               <h1 className="text-xl font-bold tracking-tight text-slate-100 flex items-center gap-2">
                 {bin.name}
               </h1>
               
               <div className="flex items-center gap-1.5">
-                <span className="px-2.5 py-1.5 rounded-lg border text-[11px] font-bold flex items-center gap-1.5 bg-slate-950/45 border-slate-850 text-slate-400">
+                <button
+                  type="button"
+                  onClick={() => onNavigate('search', { location: bin.location })}
+                  className="px-2.5 py-1.5 rounded-lg border text-[11px] font-bold flex items-center gap-1.5 bg-slate-950/45 border-slate-850 text-slate-400 cursor-pointer hover:bg-slate-800/60 hover:text-slate-200 transition-colors"
+                >
                   <MapPin className="w-3 h-3 text-pink-400 shrink-0" />
                   {bin.location}
-                </span>
+                </button>
               </div>
             </div>
 
@@ -449,39 +489,39 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
           </h2>
 
           {items.length > 0 && (
-            <div className="flex bg-slate-900/60 p-1 rounded-xl border border-slate-800/80 gap-1 shrink-0">
+            <div className="flex bg-slate-900/60 p-1 rounded-xl border border-slate-800/80 gap-1.5 shrink-0">
               <button
                 onClick={() => setLayoutMode('thumbnail')}
-                className={`p-1 rounded-lg transition-colors cursor-pointer ${
+                className={`p-2 rounded-lg transition-colors cursor-pointer ${
                   layoutMode === 'thumbnail'
                     ? 'bg-purple-655 text-white shadow shadow-purple-900/20'
                     : 'text-slate-505 hover:text-slate-300'
                 }`}
                 title="Thumbnail Grid"
               >
-                <LayoutGrid className="w-3 h-3" />
+                <LayoutGrid className="w-5 h-5" />
               </button>
               <button
                 onClick={() => setLayoutMode('detailed')}
-                className={`p-1 rounded-lg transition-colors cursor-pointer ${
+                className={`p-2 rounded-lg transition-colors cursor-pointer ${
                   layoutMode === 'detailed'
                     ? 'bg-purple-655 text-white shadow shadow-purple-900/20'
                     : 'text-slate-550 hover:text-slate-300'
                 }`}
                 title="Detailed List"
               >
-                <List className="w-3 h-3" />
+                <List className="w-5 h-5" />
               </button>
               <button
                 onClick={() => setLayoutMode('gallery')}
-                className={`p-1 rounded-lg transition-colors cursor-pointer ${
+                className={`p-2 rounded-lg transition-colors cursor-pointer ${
                   layoutMode === 'gallery'
                     ? 'bg-purple-655 text-white shadow shadow-purple-900/20'
                     : 'text-slate-550 hover:text-slate-300'
                 }`}
                 title="Gallery Mode"
               >
-                <ImageIcon className="w-3 h-3" />
+                <ImageIcon className="w-5 h-5" />
               </button>
             </div>
           )}
@@ -512,6 +552,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
             }))}
             layoutMode={layoutMode}
             onEntryClick={(entry) => onNavigate('item-details', { itemId: entry.id })}
+            onLocationClick={(loc) => onNavigate('search', { location: loc })}
             onLoadMore={() => setVisibleItemsCount(prev => prev + 12)}
             hasMore={items.length > visibleItemsCount}
             loading={false}
@@ -637,6 +678,62 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
           </div>
         </div>
       )}
+
+        {/* Full-screen QR view */}
+        {showQrView && (
+          <div
+            className="fixed inset-0 z-[70] bg-slate-950 flex flex-col"
+            onClick={() => setShowQrView(false)}
+          >
+            {/* Header: Back only, pushed below the Android status bar */}
+            <div className="flex items-center justify-between pt-[max(env(safe-area-inset-top),2rem)] px-4">
+              <button
+                type="button"
+                onClick={() => setShowQrView(false)}
+                className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+                aria-label="Back"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* QR + full text + print (print centered beneath text) */}
+            <div className="flex-1 flex flex-col items-center justify-center gap-6 p-6">
+              {qrDataUrl ? (
+                <img
+                  src={qrDataUrl}
+                  alt={bin.qr_id}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-64 h-64 sm:w-80 sm:h-80 rounded-2xl bg-white p-3"
+                />
+              ) : (
+                <div className="w-64 h-64 sm:w-80 sm:h-80 rounded-2xl bg-slate-900 animate-pulse" />
+              )}
+              <p
+                onPointerDown={handleQrTextLongPressStart}
+                onPointerUp={handleQrTextLongPressEnd}
+                onPointerLeave={handleQrTextLongPressEnd}
+                onContextMenu={(e) => { e.preventDefault(); handleQrTextLongPressEnd(); navigator.clipboard?.writeText(bin.qr_id).then(() => setCopied(true)).catch(() => {}); }}
+                onClick={(e) => e.stopPropagation()}
+                className="text-center font-mono text-sm text-slate-300 break-all max-w-md px-4 select-none"
+              >
+                {bin.qr_id}
+              </p>
+              {copied && (
+                <span className="text-xs text-emerald-400 font-medium -mt-4">
+                  Copied!
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onPrintBin(bin.qr_id, bin.name); }}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold text-sm cursor-pointer"
+              >
+                <Printer className="w-4 h-4" /> Print
+              </button>
+            </div>
+          </div>
+        )}
 
     </div>
   );
