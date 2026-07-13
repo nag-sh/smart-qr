@@ -129,6 +129,13 @@ export default function AddItem({ binId, onNavigate, onBack }) {
     setUseInlineCamera(false);
   };
 
+  useEffect(() => {
+    if (!imagePreview && !imageFile) {
+      startInlineCamera();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const capturePhoto = (e) => {
     if (e) e.stopPropagation();
     if (!videoRef.current) return;
@@ -273,19 +280,17 @@ export default function AddItem({ binId, onNavigate, onBack }) {
 
   return (
     <div className="w-full max-w-md mx-auto py-6 px-4 relative overflow-hidden">
-      {/* Back button */}
-      <button
-        onClick={() => onBack()}
-        className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
-        disabled={loading || aiAnalyzing}
-      >
-        <ArrowLeft className="w-5 h-5" />
-      </button>
-
       {/* Glow decoration */}
-      <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-600/10 rounded-full blur-3xl"></div>
+      <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-600/10 rounded-full blur-3xl pointer-events-none"></div>
 
-      <div className="p-5 border-b border-slate-800/50 bg-slate-900/30 flex items-center justify-between">
+      <div className="p-5 flex items-center gap-3 border-b border-slate-800/50">
+        <button
+          onClick={() => onBack()}
+          className="p-2 -ml-1 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+          disabled={loading || aiAnalyzing}
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
         <div className="flex items-center gap-2.5">
           <div className="p-2.5 bg-purple-500/10 rounded-xl text-purple-400">
             <Sparkles className="w-5 h-5" />
@@ -367,38 +372,32 @@ export default function AddItem({ binId, onNavigate, onBack }) {
             className="hidden"
           />
           
-          <div 
-            className="border-2 border-dashed border-slate-800 hover:border-purple-500/40 rounded-2xl aspect-square max-w-[240px] mx-auto bg-slate-950 flex flex-col items-center justify-center transition-all overflow-hidden relative"
-          >
+          <div className="relative bg-slate-950 aspect-square overflow-hidden rounded-2xl">
             {useInlineCamera ? (
-              <div className="absolute inset-0 w-full h-full flex items-center justify-center">
-                <video 
+              <>
+                <video
                   ref={videoRef}
                   autoPlay
                   playsInline
                   className="w-full h-full object-cover"
                 />
-                {/* Embedded Camera controls */}
                 <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 px-2 z-20">
                   <button
                     type="button"
                     onClick={capturePhoto}
-                    className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-xl text-[10px] font-bold flex items-center gap-1.5 cursor-pointer shadow-lg active:scale-95 transition-transform"
+                    className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg active:scale-95 transition-transform cursor-pointer"
                   >
                     <Camera className="w-4 h-4" /> Snap
                   </button>
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      stopInlineCamera();
-                    }}
-                    className="px-3 py-1.5 bg-slate-900/90 border border-slate-800 text-slate-300 hover:text-white rounded-xl text-[10px] font-bold cursor-pointer"
+                    onClick={triggerFilePicker}
+                    className="px-4 py-2.5 bg-slate-900/90 border border-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-bold cursor-pointer"
                   >
-                    Cancel
+                    Upload File
                   </button>
                 </div>
-              </div>
+              </>
             ) : imagePreview ? (
               <>
                 <img src={imagePreview} alt="Item Preview" className="w-full h-full object-cover" />
@@ -420,13 +419,13 @@ export default function AddItem({ binId, onNavigate, onBack }) {
                 </div>
               </>
             ) : compressing ? (
-              <div className="space-y-2 text-center text-slate-400 text-xs">
+              <div className="absolute inset-0 flex flex-col items-center justify-center space-y-2 text-center text-slate-400 text-xs">
                 <RefreshCw className="w-6 h-6 animate-spin mx-auto text-purple-400" />
                 <span>Optimizing photo...</span>
               </div>
             ) : (
-              <div className="space-y-3 text-center text-slate-400 p-2">
-                <div className="flex flex-col gap-2 px-4">
+              <div className="absolute inset-0 flex flex-col items-center justify-center space-y-3 text-center text-slate-400 p-4">
+                <div className="flex flex-col gap-2 px-4 w-full max-w-[240px]">
                   <button
                     type="button"
                     onClick={startInlineCamera}
@@ -442,7 +441,7 @@ export default function AddItem({ binId, onNavigate, onBack }) {
                     Select File
                   </button>
                 </div>
-                <span className="block text-[9px] text-slate-500 max-w-[200px] mx-auto leading-normal">WebRTC camera interface for mobile and desktop web browsers</span>
+                <span className="block text-[9px] text-slate-500 max-w-[240px] mx-auto leading-normal">WebRTC camera interface for mobile and desktop web browsers</span>
               </div>
             )}
           </div>

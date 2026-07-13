@@ -7,7 +7,7 @@ import {
   getAuditLog, restoreAuditEntry, cherryPickAuditEntry, restoreSelectedChanges
 } from '../services/storage';
 
-export default function RestorePoints({ onNavigate, onBack, modalTypes }) {
+export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshNonce }) {
   // Audit timeline state
   const [auditLog, setAuditLog] = useState([]);
   const [auditLoading, setAuditLoading] = useState(false);
@@ -44,7 +44,7 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes }) {
 
   useEffect(() => {
     loadAudit();
-  }, []);
+  }, [refreshNonce]);
 
   const getOperationColor = (op) => {
     if (op.startsWith('CREATE_')) return 'bg-emerald-500/10 border-emerald-500/35 text-emerald-400';
@@ -351,7 +351,7 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes }) {
 
       {/* Restore / Cherry-pick confirmation modal */}
       {(modalTypes?.includes('restore-revert') || modalTypes?.includes('restore-cherry')) && restoreTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm pointer-events-auto">
           <div className={`glass-panel w-full ${cherryPickMode ? 'max-w-2xl' : 'max-w-sm'} rounded-3xl p-6 shadow-2xl border border-purple-500/20 space-y-5 relative max-h-[90vh] flex flex-col justify-between`}>
             <button
               onClick={() => { if (!restoring) { onBack(); } }}
@@ -523,7 +523,7 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes }) {
 
       {/* Multi-change cherry-pick restore modal */}
       {modalTypes?.includes('restore-multi') && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm pointer-events-auto">
           <div className="glass-panel w-full max-w-md rounded-3xl p-6 shadow-2xl border border-purple-500/20 space-y-5 relative max-h-[90vh] flex flex-col justify-between">
             <button
               onClick={() => { if (!restoring) onBack(); }}
@@ -600,7 +600,7 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes }) {
 
       {/* Audit entry details modal */}
       {modalTypes?.includes('restore-details') && selectedAuditEntry && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in pointer-events-auto">
           <div className="glass-panel w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl border border-purple-500/20 flex flex-col max-h-[85vh]">
             {/* Header */}
             <div className="p-6 border-b border-slate-800/60 bg-gradient-to-b from-purple-950/20 to-transparent flex items-start justify-between">

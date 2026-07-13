@@ -8,7 +8,7 @@ import { getBin, getBins, updateBin, deleteBin, batchManageItems } from '../serv
 import imageCompression from 'browser-image-compression';
 import EntityList from '../components/EntityList';
 
-export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, modalTypes }) {
+export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, modalTypes, refreshNonce }) {
   const [bin, setBin] = useState(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -66,7 +66,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
       fetchBinDetails();
       fetchLocations();
     }
-  }, [binId]);
+  }, [binId, refreshNonce]);
 
   useEffect(() => {
     if (!showOverflowMenu) return;
@@ -520,7 +520,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
 
       {/* 1. BATCH MANAGE ITEMS MODAL */}
       {modalTypes?.includes('batch-manage') && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm pointer-events-auto">
           <div className="glass-panel w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-5 relative max-h-[90vh] flex flex-col justify-between">
             <button
               onClick={() => onBack()}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, useSearchParams, useNavigate } from 'react-router-dom';
-import { parseModalStack, stackToSearchString } from './modalStack.js';
+import { parseModalStack, stackToSearchString, dedupeStack } from './modalStack.js';
 import { QrCode, Settings as SettingsIcon, Printer, Info, ArrowLeft, Plus } from 'lucide-react';
 
 // Import Views
@@ -21,7 +21,7 @@ function ModalShell({ onClose, hideClose = false, children }) {
       onClick={onClose}
     >
       <div className="w-[92%] sm:w-auto max-w-4xl" onClick={(e) => e.stopPropagation()}>
-        <div className="glass-panel-modal w-full max-h-[90vh] overflow-y-auto rounded-3xl relative animate-in fade-in zoom-in-95 duration-200">
+        <div className="glass-panel-modal w-full max-h-[90vh] overflow-y-auto overflow-x-hidden rounded-3xl relative animate-in fade-in zoom-in-95 duration-200">
           {!hideClose && (
             <button
               onClick={onClose}
@@ -48,8 +48,11 @@ function AppContent() {
   // Modal stack: derived from the URL (?modal=...&...) so it is linkable/layered
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const stack = parseModalStack(searchParams);
+  const stack = dedupeStack(parseModalStack(searchParams));
   const modalTypes = stack.map(l => l.type);
+
+  const [refreshNonce, setRefreshNonce] = useState(0);
+  const bumpRefresh = () => setRefreshNonce((n) => n + 1);
 
   // Auto-close print helper popup after 5 seconds to stay out of the user's way
   useEffect(() => {
@@ -85,6 +88,27 @@ function AppContent() {
       window.scrollTo({ top: 0, behavior: 'instant' });
       return;
     }
+
+    // One unique modal type at a time. If the target type is already in the
+    // stack, returning to it is equivalent to pressing the back button, so we
+    // pop back to that existing instance instead of stacking a duplicate.
+    const existingIdx = stack.findIndex((l) => l.type === viewName);
+    if (existingIdx >= 0) {
+      if (existingIdx < stack.length - 1) {
+        bumpRefresh();
+        const layersToPop = stack.length - 1 - existingIdx;
+        if (pushDepth.current >= layersToPop) {
+          pushDepth.current -= layersToPop;
+          navigate(-layersToPop);
+        } else {
+          const targetSearch = stackToSearchString(stack.slice(0, existingIdx + 1));
+          navigate(targetSearch ? { search: targetSearch } : '/');
+        }
+      }
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      return;
+    }
+
     const newStack = [...stack, { type: viewName, params }];
     navigate({ search: stackToSearchString(newStack) });
     pushDepth.current += 1;
@@ -92,6 +116,7 @@ function AppContent() {
   };
 
   const onBack = () => {
+    bumpRefresh();
     if (pushDepth.current > 0) {
       pushDepth.current -= 1;
       navigate(-1);
@@ -115,23 +140,23 @@ function AppContent() {
     if (stack.length === 0) return null;
     return stack.map((layer, i) => {
       const { type, params } = layer;
-      const hideClose = ['restore-points', 'bin-details', 'item-details', 'add-item', 'create-bin'].includes(type);
+      const hideClose = ['restore-points', 'bin-details', 'item-details', 'add-item', 'create-bin', 'scanner'].includes(type);
       const isLast = i === stack.length - 1;
 
       let view;
       switch (type) {
-        case 'scanner': view = <Scanner onNavigate={onNavigate} onBack={onBack} />; break;
-        case 'create-bin': view = <CreateBin qrId={params.qrId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} />; break;
-        case 'bin-details': view = <BinDetails binId={params.binId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} modalTypes={modalTypes} />; break;
-        case 'item-details': view = <ItemDetails itemId={params.itemId} onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} />; break;
-        case 'add-item': view = <AddItem binId={params.binId} onNavigate={onNavigate} onBack={onBack} />; break;
-        case 'settings': view = <Settings onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} />; break;
-        case 'restore-points': view = <RestorePoints onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} />; break;
+        case 'scanner': view = <Scanner onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
+        case 'create-bin': view = <CreateBin qrId={params.qrId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} refreshNonce={refreshNonce} />; break;
+        case 'bin-details': view = <BinDetails binId={params.binId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
+        case 'item-details': view = <ItemDetails itemId={params.itemId} onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
+        case 'add-item': view = <AddItem binId={params.binId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
+        case 'settings': view = <Settings onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
+        case 'restore-points': view = <RestorePoints onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
         default: return null;
       }
 
       return (
-        <div key={i} style={{ position: 'fixed', inset: 0, zIndex: 50 + i, pointerEvents: isLast ? 'auto' : 'none' }}>
+        <div key={i} style={{ position: 'fixed', inset: 0, zIndex: 60 + i, pointerEvents: isLast ? 'auto' : 'none' }}>
           <ModalShell onClose={onBack} hideClose={hideClose}>
             {view}
           </ModalShell>
@@ -181,7 +206,7 @@ function AppContent() {
 
       {/* 4. ON-SCREEN PRINT HELPER MODAL OVERLAY (Visible on screen, excluded from printed page) */}
       {showPrintHelper && printData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm no-print">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm no-print">
           <div className="glass-panel w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-slate-800 relative text-center space-y-5 animate-in fade-in zoom-in-95 duration-200">
             <button
               onClick={() => {

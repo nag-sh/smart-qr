@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { Camera, CameraOff, QrCode, AlertCircle, ArrowRight, Keyboard, RefreshCw } from 'lucide-react';
+import { Camera, CameraOff, QrCode, AlertCircle, ArrowRight, Keyboard, RefreshCw, ArrowLeft } from 'lucide-react';
 import { getBin } from '../services/storage';
 
 export default function Scanner({ onNavigate, onBack }) {
@@ -112,21 +112,28 @@ export default function Scanner({ onNavigate, onBack }) {
   return (
     <div className="w-full max-w-md mx-auto py-6 px-4 space-y-6 relative overflow-hidden">
       {/* Glow Effects */}
-      <div className="absolute -top-24 -left-24 w-48 h-48 bg-purple-600/10 rounded-full blur-3xl"></div>
+      <div className="absolute -top-24 -left-24 w-48 h-48 bg-purple-600/10 rounded-full blur-3xl pointer-events-none"></div>
 
-      {/* Viewport Header */}
-      <div className="p-5 flex items-center justify-between border-b border-slate-800/50 bg-slate-900/30">
-        <div className="flex items-center gap-2">
-          <QrCode className="w-5 h-5 text-purple-400" />
-          <h1 className="font-bold text-sm text-slate-200">Scan QR Code</h1>
-        </div>
-        <button
-          onClick={() => {
-            stopScanner();
-            setManualMode(!manualMode);
-          }}
-          className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-700/60 hover:bg-slate-800/50 text-slate-300 transition-colors flex items-center gap-1.5 cursor-pointer"
-        >
+        {/* Viewport Header */}
+        <div className="p-5 flex items-center gap-3 border-b border-slate-800/50">
+          <button
+            onClick={onBack}
+            aria-label="Back to Search"
+            className="p-2 -ml-1 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div className="flex items-center gap-2">
+            <QrCode className="w-5 h-5 text-purple-400" />
+            <h1 className="font-bold text-sm text-slate-200">Scan QR Code</h1>
+          </div>
+          <button
+            onClick={() => {
+              stopScanner();
+              setManualMode(!manualMode);
+            }}
+            className="ml-auto text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-700/60 hover:bg-slate-800/50 text-slate-300 transition-colors flex items-center gap-1.5 cursor-pointer"
+          >
           {manualMode ? (
             <>
               <Camera className="w-3.5 h-3.5" /> Use Camera
@@ -219,7 +226,7 @@ export default function Scanner({ onNavigate, onBack }) {
 
       {/* Feedback / Error Messages */}
       {(error || scanResult) && (
-        <div className="p-4 border-t border-slate-800/50 bg-slate-900/20">
+          <div className="p-4 border-t border-slate-800/50">
           {error && (
             <div className="flex gap-2.5 text-xs text-red-300 items-start">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-400" />

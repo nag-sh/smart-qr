@@ -58,3 +58,14 @@ export function stackToSearchString(stack) {
   const str = sp.toString();
   return str ? `?${str}` : '';
 }
+
+export function dedupeStack(stack) {
+  const seen = new Set();
+  const result = [];
+  for (const layer of stack) {
+    if (seen.has(layer.type)) continue;
+    seen.add(layer.type);
+    result.push(layer);
+  }
+  return result;
+}
