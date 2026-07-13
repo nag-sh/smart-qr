@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Box, MapPin, QrCode, Plus, AlertCircle, RefreshCw, ArrowLeft, 
-  Package, Printer, Edit, Trash2, X, Check, MoreHorizontal,
+  Package, Printer, Edit, Trash2, Check, MoreHorizontal,
   FolderTree, LayoutGrid, List, Image as ImageIcon
 } from 'lucide-react';
 import { getBin, getBins, updateBin, deleteBin, batchManageItems } from '../services/storage';
@@ -81,13 +81,21 @@ export default function BinDetails({ binId, onNavigate, onPrintBin }) {
   }, [showOverflowMenu]);
 
   // 5. Layout Modes & Infinite Scroll states
-  const [layoutMode, setLayoutMode] = useState('thumbnail'); // 'thumbnail' | 'detailed' | 'gallery'
+  const [layoutMode, setLayoutMode] = useState(() => {
+    const saved = localStorage.getItem('view_mode_bin_items');
+    const valid = ['thumbnail', 'detailed', 'gallery'];
+    return valid.includes(saved) ? saved : 'thumbnail';
+  }); // 'thumbnail' | 'detailed' | 'gallery'
   const [visibleItemsCount, setVisibleItemsCount] = useState(12);
 
   // Reset pagination when bin or layout changes
   useEffect(() => {
     setVisibleItemsCount(12);
   }, [binId, layoutMode]);
+
+  useEffect(() => {
+    localStorage.setItem('view_mode_bin_items', layoutMode);
+  }, [layoutMode]);
 
   if (loading) {
     return (
@@ -517,9 +525,10 @@ export default function BinDetails({ binId, onNavigate, onPrintBin }) {
           <div className="glass-panel w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-5 relative max-h-[90vh] flex flex-col justify-between">
             <button
               onClick={() => setShowBatchModal(false)}
-              className="absolute top-4 right-4 p-1 rounded-lg text-slate-500 hover:text-slate-350 cursor-pointer"
+              className="absolute top-4 right-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              aria-label="Back"
             >
-              <X className="w-4 h-4" />
+              <ArrowLeft className="w-5 h-5" />
             </button>
 
             <div className="space-y-2">

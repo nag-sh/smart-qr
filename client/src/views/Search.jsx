@@ -1,12 +1,15 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Search as SearchIcon, MapPin, QrCode, LayoutGrid, List, Image as ImageIcon, Plus, X, Box, Package, Filter as FilterIcon, Tag, Trash2, Move, RefreshCw, Check } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { Search as SearchIcon, MapPin, QrCode, LayoutGrid, List, Image as ImageIcon, Box, Package, Filter as FilterIcon, Tag, Trash2, Move, RefreshCw, Check, X, ArrowLeft, Settings as SettingsIcon } from 'lucide-react';
 import { getBins, searchItems, batchDeleteBins, batchUpdateBinLocations, batchDeleteItems, batchMoveItems } from '../services/storage';
 import EntityList from '../components/EntityList';
 
-export default function Search({ onNavigate }) {
+export default function Search({ onNavigate, showQuickAdd, setShowQuickAdd }) {
   const [query, setQuery] = useState('');
-  const [layoutMode, setLayoutMode] = useState('thumbnail'); // 'thumbnail' | 'detailed' | 'gallery'
-  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [layoutMode, setLayoutMode] = useState(() => {
+    const saved = localStorage.getItem('view_mode_search');
+    const valid = ['thumbnail', 'detailed', 'gallery'];
+    return valid.includes(saved) ? saved : 'thumbnail';
+  }); // 'thumbnail' | 'detailed' | 'gallery'
   const [showFilters, setShowFilters] = useState(false);
 
   const [manageMode, setManageMode] = useState(false);
@@ -34,6 +37,57 @@ export default function Search({ onNavigate }) {
     setSelectedBins(new Set());
     setSelectedHasFields(new Set());
   };
+
+  const isolateFilter = (type, value) => {
+    if (type === 'locations') {
+      setSelectedLocations(new Set([value]));
+      setSelectedTags(new Set());
+      setSelectedBins(new Set());
+      setSelectedHasFields(new Set());
+    } else if (type === 'tags') {
+      setSelectedTags(new Set([value]));
+      setSelectedLocations(new Set());
+      setSelectedBins(new Set());
+      setSelectedHasFields(new Set());
+    } else if (type === 'bins') {
+      setSelectedBins(new Set([value]));
+      setSelectedLocations(new Set());
+      setSelectedTags(new Set());
+      setSelectedHasFields(new Set());
+    } else if (type === 'hasFields') {
+      setSelectedHasFields(new Set([value]));
+      setSelectedLocations(new Set());
+      setSelectedTags(new Set());
+      setSelectedBins(new Set());
+    }
+  };
+
+  useEffect(() => {
+    localStorage.setItem('view_mode_search', layoutMode);
+  }, [layoutMode]);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('search_filters'));
+      if (saved && typeof saved === 'object' && saved !== null) {
+        if (Array.isArray(saved.locations)) setSelectedLocations(new Set(saved.locations));
+        if (Array.isArray(saved.tags)) setSelectedTags(new Set(saved.tags));
+        if (Array.isArray(saved.bins)) setSelectedBins(new Set(saved.bins));
+        if (Array.isArray(saved.hasFields)) setSelectedHasFields(new Set(saved.hasFields));
+      }
+    } catch (err) {
+      console.warn('Failed to parse saved search filters:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('search_filters', JSON.stringify({
+      locations: Array.from(selectedLocations),
+      tags: Array.from(selectedTags),
+      bins: Array.from(selectedBins),
+      hasFields: Array.from(selectedHasFields)
+    }));
+  }, [selectedLocations, selectedTags, selectedBins, selectedHasFields]);
 
   // Bins state
   const [bins, setBins] = useState([]);
@@ -206,6 +260,11 @@ export default function Search({ onNavigate }) {
     });
   };
 
+  const handleLongPress = useCallback((entry) => {
+    setSelectedIds(new Set([entry.id]));
+    setManageMode(true);
+  }, []);
+
   const toggleSelected = (entry, checked) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -294,89 +353,10 @@ export default function Search({ onNavigate }) {
   return (
     <div className="max-w-4xl mx-auto py-6 px-4 space-y-6">
       {/* Compact Brand Header */}
-      <div className="flex items-center justify-between py-2">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight">
-            Smart <span className="text-gradient">QR Inventory</span>
-          </h1>
-          <p className="text-xs text-slate-400 max-w-md">
-            Locate and catalog your items with AI auto-labeling and high-speed search.
-          </p>
-        </div>
-
-        {/* Layout Switcher */}
-        <div className="flex bg-slate-900/60 p-1 rounded-xl border border-slate-800/80 gap-1 shrink-0">
-          <button
-            onClick={() => setLayoutMode('thumbnail')}
-            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-              layoutMode === 'thumbnail'
-                ? 'bg-purple-600 text-white shadow shadow-purple-950/20'
-                : 'text-slate-500 hover:text-slate-300'
-            }`}
-            title="Thumbnail Grid Mode"
-          >
-            <LayoutGrid className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={() => setLayoutMode('detailed')}
-            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-              layoutMode === 'detailed'
-                ? 'bg-purple-600 text-white shadow shadow-purple-950/20'
-                : 'text-slate-500 hover:text-slate-300'
-            }`}
-            title="Detailed List Mode"
-          >
-            <List className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={() => setLayoutMode('gallery')}
-            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-              layoutMode === 'gallery'
-                ? 'bg-purple-600 text-white shadow shadow-purple-950/20'
-                : 'text-slate-500 hover:text-slate-300'
-            }`}
-            title="Gallery Mode"
-          >
-            <ImageIcon className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={() => setShowFilters(true)}
-            className={`relative p-1.5 rounded-lg transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50 ${
-              showFilters || activeFilterCount > 0
-                ? 'bg-purple-600 text-white shadow shadow-purple-950/20'
-                : 'text-slate-500 hover:text-slate-300'
-            }`}
-            title="Filters"
-            aria-label="Filters"
-          >
-            <FilterIcon className="w-3.5 h-3.5" />
-            {activeFilterCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-1 flex items-center justify-center rounded-full bg-pink-500 text-[8px] font-bold text-white shadow-sm">
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={toggleManageMode}
-            className={`px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50 ${
-              manageMode
-                ? 'bg-purple-600 text-white shadow shadow-purple-950/20'
-                : 'text-slate-500 hover:text-slate-300'
-            }`}
-            title="Manage"
-            aria-label="Manage"
-          >
-            Manage
-          </button>
-          <button
-            onClick={() => setShowQuickAdd(true)}
-            className="p-1.5 rounded-lg transition-all cursor-pointer bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow shadow-purple-950/20 hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-            title="Quick Add"
-            aria-label="Quick Add"
-          >
-            <Plus className="w-3.5 h-3.5" />
-          </button>
-        </div>
+      <div className="py-1">
+        <h1 className="text-xl font-bold tracking-tight leading-tight">
+          Smart <span className="text-gradient">QR Inventory</span>
+        </h1>
       </div>
 
       {/* Unified Search Bar & Quick Scan */}
@@ -400,6 +380,173 @@ export default function Search({ onNavigate }) {
         </button>
       </div>
 
+      {activeFilterCount > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {Array.from(selectedLocations).map((loc) => (
+            <span
+              key={`loc-${loc}`}
+              onClick={() => isolateFilter('locations', loc)}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold bg-purple-500/20 border-purple-500/40 text-purple-300 cursor-pointer hover:bg-purple-500/30 transition-colors"
+            >
+              <MapPin className="w-3 h-3 text-pink-400 shrink-0" />
+              {loc}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleInSet(selectedLocations, loc, setSelectedLocations);
+                }}
+                className="ml-0.5 p-0.5 rounded hover:bg-purple-500/20 text-purple-300 hover:text-purple-200 transition-colors cursor-pointer"
+                aria-label={`Remove location ${loc}`}
+                title="Remove"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+          {Array.from(selectedTags).map((tag) => (
+            <span
+              key={`tag-${tag}`}
+              onClick={() => isolateFilter('tags', tag)}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold bg-purple-500/20 border-purple-500/40 text-purple-300 cursor-pointer hover:bg-purple-500/30 transition-colors"
+            >
+              <Tag className="w-3 h-3 text-purple-400 shrink-0" />
+              {tag}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleInSet(selectedTags, tag, setSelectedTags);
+                }}
+                className="ml-0.5 p-0.5 rounded hover:bg-purple-500/20 text-purple-300 hover:text-purple-200 transition-colors cursor-pointer"
+                aria-label={`Remove tag ${tag}`}
+                title="Remove"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+          {Array.from(selectedBins).map((binId) => {
+            const bin = allBins.find((b) => b.id === binId);
+            return (
+              <span
+                key={`bin-${binId}`}
+                onClick={() => isolateFilter('bins', binId)}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold bg-purple-500/20 border-purple-500/40 text-purple-300 cursor-pointer hover:bg-purple-500/30 transition-colors"
+              >
+                <Box className="w-3 h-3 text-slate-400 shrink-0" />
+                {bin ? bin.name : binId}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleInSet(selectedBins, binId, setSelectedBins);
+                  }}
+                  className="ml-0.5 p-0.5 rounded hover:bg-purple-500/20 text-purple-300 hover:text-purple-200 transition-colors cursor-pointer"
+                  aria-label={`Remove bin ${bin ? bin.name : binId}`}
+                  title="Remove"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            );
+          })}
+          {Array.from(selectedHasFields).map((field) => (
+            <span
+              key={`field-${field}`}
+              onClick={() => isolateFilter('hasFields', field)}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold bg-purple-500/20 border-purple-500/40 text-purple-300 cursor-pointer hover:bg-purple-500/30 transition-colors"
+            >
+              {field.charAt(0).toUpperCase() + field.slice(1)}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleInSet(selectedHasFields, field, setSelectedHasFields);
+                }}
+                className="ml-0.5 p-0.5 rounded hover:bg-purple-500/20 text-purple-300 hover:text-purple-200 transition-colors cursor-pointer"
+                aria-label={`Remove field ${field}`}
+                title="Remove"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+          <button
+            onClick={clearFilters}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition-all cursor-pointer bg-slate-950/45 border-slate-850 text-slate-400 hover:text-slate-200 hover:border-slate-700"
+          >
+            Clear all ({activeFilterCount})
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex bg-slate-900/60 p-1 rounded-xl border border-slate-800/80 gap-1 shrink-0">
+          <button
+            onClick={() => setLayoutMode('thumbnail')}
+            className={`p-2.5 rounded-lg transition-colors cursor-pointer ${
+              layoutMode === 'thumbnail'
+                ? 'bg-purple-600 text-white shadow shadow-purple-950/20'
+                : 'text-slate-500 hover:text-slate-300'
+            }`}
+            title="Thumbnail Grid Mode"
+            aria-label="Thumbnail Grid Mode"
+          >
+            <LayoutGrid className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setLayoutMode('detailed')}
+            className={`p-2.5 rounded-lg transition-colors cursor-pointer ${
+              layoutMode === 'detailed'
+                ? 'bg-purple-600 text-white shadow shadow-purple-950/20'
+                : 'text-slate-500 hover:text-slate-300'
+            }`}
+            title="Detailed List Mode"
+            aria-label="Detailed List Mode"
+          >
+            <List className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setLayoutMode('gallery')}
+            className={`p-2.5 rounded-lg transition-colors cursor-pointer ${
+              layoutMode === 'gallery'
+                ? 'bg-purple-600 text-white shadow shadow-purple-950/20'
+                : 'text-slate-500 hover:text-slate-300'
+            }`}
+            title="Gallery Mode"
+            aria-label="Gallery Mode"
+          >
+            <ImageIcon className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => setShowFilters(true)}
+            className={`relative p-2.5 rounded-xl transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50 bg-slate-900/60 border border-slate-800/80 ${
+              showFilters || activeFilterCount > 0
+                ? 'bg-purple-600 text-white shadow shadow-purple-950/20'
+                : 'text-slate-500 hover:text-slate-300'
+            }`}
+            title="Filters"
+            aria-label="Filters"
+          >
+            <FilterIcon className="w-5 h-5" />
+            {activeFilterCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-1 flex items-center justify-center rounded-full bg-pink-500 text-[8px] font-bold text-white shadow-sm">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => onNavigate('settings')}
+            className="p-2.5 rounded-xl transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50 bg-slate-900/60 border border-slate-800/80 text-slate-500 hover:text-slate-300"
+            title="Settings"
+            aria-label="Settings"
+          >
+            <SettingsIcon className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+
       {/* Error state */}
       {error && (
         <div className="p-4 bg-red-500/10 border border-red-500/25 rounded-2xl text-center text-sm text-red-300">
@@ -415,6 +562,7 @@ export default function Search({ onNavigate }) {
         selectedIds={selectedIds}
         onSelectToggle={toggleSelected}
         onEntryClick={handleEntryClick}
+        onLongPress={handleLongPress}
         onLoadMore={handleLoadMore}
         hasMore={hasMore}
         loading={binsLoading || itemsLoading}
@@ -429,13 +577,23 @@ export default function Search({ onNavigate }) {
             <span className="text-xs font-bold text-slate-300">
               {selectedIds.size} selected
             </span>
-            <button
-              onClick={() => setSelectedIds(new Set())}
-              disabled={selectedIds.size === 0}
-              className="text-[10px] font-bold text-slate-400 hover:text-slate-200 disabled:opacity-40 transition-colors cursor-pointer"
-            >
-              Clear
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                disabled={selectedIds.size === 0}
+                className="text-[10px] font-bold text-slate-400 hover:text-slate-200 disabled:opacity-40 transition-colors cursor-pointer"
+              >
+                Clear
+              </button>
+              <button
+                onClick={toggleManageMode}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-900/60 transition-colors cursor-pointer"
+                title="Cancel manage mode"
+                aria-label="Cancel manage mode"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {isMixedSelection && (
@@ -532,11 +690,11 @@ export default function Search({ onNavigate }) {
           >
             <button
               onClick={() => setShowQuickAdd(false)}
-              className="absolute top-4 right-4 p-1 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-900 transition-all cursor-pointer"
-              title="Close"
-              aria-label="Close"
+              className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              title="Back to Search"
+              aria-label="Back to Search"
             >
-              <X className="w-4 h-4" />
+              <ArrowLeft className="w-5 h-5" />
             </button>
 
             <div className="text-center space-y-1.5">
@@ -599,11 +757,11 @@ export default function Search({ onNavigate }) {
               <h2 className="text-base font-bold text-slate-200">Filters</h2>
               <button
                 onClick={() => setShowFilters(false)}
-                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-900 transition-all cursor-pointer"
-                title="Close filters"
-                aria-label="Close filters"
+                className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+                title="Back to Search"
+                aria-label="Back to Search"
               >
-                <X className="w-4 h-4" />
+                <ArrowLeft className="w-5 h-5" />
               </button>
             </div>
 
