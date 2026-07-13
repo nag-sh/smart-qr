@@ -63,6 +63,7 @@ export default function Scanner({ onNavigate, onBack }) {
               facingMode: 'environment',
               width: { ideal: 1280 },
               height: { ideal: 720 },
+              frameRate: { ideal: 30 },
             },
           },
           (decodedText) => {
@@ -229,15 +230,21 @@ export default function Scanner({ onNavigate, onBack }) {
             <div id="scanner-viewport" className="w-full h-full object-cover"></div>
 
             {isScanning && (
-              <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                <div className="absolute inset-0 bg-slate-950/40"></div>
-                <div className="w-[65%] aspect-square border-2 border-purple-500/60 rounded-2xl animate-qr-pulse relative z-10">
-                  <div className="absolute -top-[3px] -left-[3px] w-6 h-6 border-t-4 border-l-4 border-purple-500 rounded-tl-xl"></div>
-                  <div className="absolute -top-[3px] -right-[3px] w-6 h-6 border-t-4 border-r-4 border-purple-500 rounded-tr-xl"></div>
-                  <div className="absolute -bottom-[3px] -left-[3px] w-6 h-6 border-b-4 border-l-4 border-purple-500 rounded-bl-xl"></div>
-                  <div className="absolute -bottom-[3px] -right-[3px] w-6 h-6 border-b-4 border-r-4 border-purple-500 rounded-br-xl"></div>
-                  <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
-                    <div className="absolute left-1 right-1 top-0 h-full scan-line-gradient animate-scan-sweep"></div>
+              <div className="absolute inset-0 pointer-events-none">
+                <div className="absolute top-0 left-0 right-0 h-[17.5%] bg-slate-950"></div>
+                <div className="absolute bottom-0 left-0 right-0 h-[17.5%] bg-slate-950"></div>
+                <div className="absolute top-[17.5%] bottom-[17.5%] left-0 w-[17.5%] bg-slate-950"></div>
+                <div className="absolute top-[17.5%] bottom-[17.5%] right-0 w-[17.5%] bg-slate-950"></div>
+
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="relative w-[65%] aspect-square border-2 border-purple-500/60 rounded-2xl animate-qr-pulse">
+                    <div className="absolute -top-[3px] -left-[3px] w-6 h-6 border-t-4 border-l-4 border-purple-500 rounded-tl-xl"></div>
+                    <div className="absolute -top-[3px] -right-[3px] w-6 h-6 border-t-4 border-r-4 border-purple-500 rounded-tr-xl"></div>
+                    <div className="absolute -bottom-[3px] -left-[3px] w-6 h-6 border-b-4 border-l-4 border-purple-500 rounded-bl-xl"></div>
+                    <div className="absolute -bottom-[3px] -right-[3px] w-6 h-6 border-b-4 border-r-4 border-purple-500 rounded-br-xl"></div>
+                    <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
+                      <div className="absolute left-1 right-1 top-0 h-full scan-line-gradient animate-scan-sweep"></div>
+                    </div>
                   </div>
                 </div>
               </div>
