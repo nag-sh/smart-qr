@@ -3,17 +3,24 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 import { isNative } from './utils/platform.js'
+import { initStorage } from './services/storage.js'
 
-if (!isNative() && 'serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then(reg => console.log('Service Worker registered successfully with scope: ', reg.scope))
-      .catch(err => console.error('Service Worker registration failed: ', err));
-  });
+async function bootstrap() {
+  await initStorage()
+
+  if (!isNative() && 'serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js')
+        .then(reg => console.log('Service Worker registered successfully with scope: ', reg.scope))
+        .catch(err => console.error('Service Worker registration failed: ', err));
+    });
+  }
+
+  createRoot(document.getElementById('root')).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  )
 }
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+bootstrap()

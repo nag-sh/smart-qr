@@ -65,8 +65,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
 
       const converted = await localRecordsFromSync(data.bins, data.items);
 
-      const localBins = getLocalExportData().bins;
-      const localItems = getLocalExportData().items;
+      const { bins: localBins, items: localItems } = await getLocalExportData();
 
       // Merge: server records win on conflict (same id), append new ones
       const mergedBins = [
@@ -96,7 +95,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
     clearSyncFeedback();
     setSyncLoading(true);
     try {
-      const { bins, items } = getLocalExportData();
+      const { bins, items } = await getLocalExportData();
       const syncData = await localRecordsForSync(bins, items);
       const response = await fetch('/api/sync/push', {
         method: 'POST',
@@ -164,7 +163,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
     if (!trimmed) return;
 
     const token = cloudTokenInput.trim();
-    persistStorageMode('server');
+    await persistStorageMode('server');
     setStorageModeState('server');
     localStorage.setItem('cloud_server_url', trimmed);
     if (token) {
@@ -235,9 +234,9 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
   };
 
   // Toggle storage modes
-  const handleStorageModeChange = (mode) => {
+  const handleStorageModeChange = async (mode) => {
     if (confirm(`Switch storage database to ${mode === 'local' ? 'Local Browser Memory (Offline)' : 'Central SQLite Server'}? The page will reload.`)) {
-      persistStorageMode(mode);
+      await persistStorageMode(mode);
       setStorageModeState(mode);
       window.location.reload();
     }
@@ -246,7 +245,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
   const handleLocalExport = async (e) => {
     e.preventDefault();
     try {
-      const { bins, items } = getLocalExportData();
+      const { bins, items } = await getLocalExportData();
       const zip = new JSZip();
       const usedSet = new Set();
       const binMap = new Map(bins.map(b => [b.id, b]));
