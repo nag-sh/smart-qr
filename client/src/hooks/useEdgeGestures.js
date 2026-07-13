@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 
-const EDGE = 28;
+const RESERVED_EDGE = 30;
+const LEFT_ZONE_FRACTION = 0.35;
+const LEFT_ZONE_MAX = 160;
 const MIN_SWIPE = 60;
 
 export function useEdgeGestures(rootRef, { onBack }) {
@@ -27,7 +29,10 @@ export function useEdgeGestures(rootRef, { onBack }) {
 
       if (!isHorizontalSwipe(dx, dy)) return;
 
-      if (start.x <= EDGE && dx > 0) {
+      const leftZone = Math.min(window.innerWidth * LEFT_ZONE_FRACTION, LEFT_ZONE_MAX);
+      const fromLeftArea = start.x > RESERVED_EDGE && start.x <= leftZone;
+
+      if (fromLeftArea && dx > 0) {
         e.preventDefault();
         onBack();
       }
