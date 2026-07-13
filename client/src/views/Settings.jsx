@@ -775,7 +775,7 @@ export default function Settings({ onNavigate }) {
           <div className="glass-panel w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-red-500/20 space-y-5 relative">
             <button
               onClick={() => { setShowDeleteWarning(false); setPendingSyncDirection(null); }}
-              className="absolute top-4 right-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              className="absolute top-4 left-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
               aria-label="Back"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -830,7 +830,7 @@ export default function Settings({ onNavigate }) {
           >
             <button
               onClick={handleCloudCancel}
-              className="absolute top-4 right-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              className="absolute top-4 left-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
               aria-label="Back"
             >
               <ArrowLeft className="w-5 h-5" />

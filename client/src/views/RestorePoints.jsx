@@ -314,7 +314,7 @@ export default function RestorePoints({ onNavigate }) {
       <div className="flex items-center gap-3">
         <button
           onClick={() => onNavigate?.('settings')}
-          className="p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 hover:text-slate-200 hover:border-purple-500/30 transition-all cursor-pointer"
+          className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
           aria-label="Back to Settings"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -354,7 +354,7 @@ export default function RestorePoints({ onNavigate }) {
           <div className={`glass-panel w-full ${cherryPickMode ? 'max-w-2xl' : 'max-w-sm'} rounded-3xl p-6 shadow-2xl border border-purple-500/20 space-y-5 relative max-h-[90vh] flex flex-col justify-between`}>
             <button
               onClick={() => { if (!restoring) { setRestoreTarget(null); setCherryPickMode(false); } }}
-              className="absolute top-4 right-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              className="absolute top-4 left-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
               aria-label="Back"
               disabled={restoring}
             >
@@ -526,7 +526,7 @@ export default function RestorePoints({ onNavigate }) {
           <div className="glass-panel w-full max-w-md rounded-3xl p-6 shadow-2xl border border-purple-500/20 space-y-5 relative max-h-[90vh] flex flex-col justify-between">
             <button
               onClick={() => { if (!restoring) setShowMultiRestoreModal(false); }}
-              className="absolute top-4 right-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              className="absolute top-4 left-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
               aria-label="Back"
               disabled={restoring}
             >
@@ -603,6 +603,13 @@ export default function RestorePoints({ onNavigate }) {
           <div className="glass-panel w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl border border-purple-500/20 flex flex-col max-h-[85vh]">
             {/* Header */}
             <div className="p-6 border-b border-slate-800/60 bg-gradient-to-b from-purple-950/20 to-transparent flex items-start justify-between">
+              <button
+                onClick={() => setSelectedAuditEntry(null)}
+                className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+                aria-label="Back"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
               <div>
                 <div className="flex items-center gap-2 mb-1.5">
                   <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider ${getOperationColor(selectedAuditEntry.operation)}`}>
@@ -617,13 +624,6 @@ export default function RestorePoints({ onNavigate }) {
                   {new Date(selectedAuditEntry.created_at).toLocaleString()}
                 </p>
               </div>
-              <button
-                onClick={() => setSelectedAuditEntry(null)}
-                className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
-                aria-label="Back"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
             </div>
 
             {/* Scrollable body */}
