@@ -4,7 +4,7 @@ import imageCompression from 'browser-image-compression';
 import { analyzeItemImage } from '../services/gemini';
 import { createItem, getBins } from '../services/storage';
 
-export default function AddItem({ binId, onNavigate }) {
+export default function AddItem({ binId, onNavigate, onBack }) {
   // Key state
   const [apiKey, setApiKey] = useState('');
   
@@ -275,13 +275,7 @@ export default function AddItem({ binId, onNavigate }) {
     <div className="w-full max-w-md mx-auto py-6 px-4 relative overflow-hidden">
       {/* Back button */}
       <button
-        onClick={() => {
-          if (binId) {
-            onNavigate('bin-details', { binId });
-          } else {
-            onNavigate('search');
-          }
-        }}
+        onClick={() => onBack()}
         className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
         disabled={loading || aiAnalyzing}
       >
