@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, RefreshCw, Sparkles, Tag, Type, FileText, Plus, X, Save, ArrowLeft, AlertCircle } from 'lucide-react';
+import { Camera, RefreshCw, Sparkles, Tag, Type, FileText, Plus, X, Save, ArrowLeft, AlertCircle, SwitchCamera } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { analyzeItemImage } from '../services/gemini';
 import { createItem, getBins } from '../services/storage';
+import { useCameraDevices } from '../hooks/useCameraDevices';
 
 export default function AddItem({ binId, onNavigate, onBack }) {
+  const { devices, currentDeviceId, switchCamera, hasMultipleCameras } = useCameraDevices();
   // Key state
   const [apiKey, setApiKey] = useState('');
   
@@ -49,6 +51,7 @@ export default function AddItem({ binId, onNavigate, onBack }) {
   // WebRTC camera state
   const [useInlineCamera, setUseInlineCamera] = useState(false);
   const [cameraStream, setCameraStream] = useState(null);
+  const [cameraReady, setCameraReady] = useState(false);
 
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
@@ -98,27 +101,57 @@ export default function AddItem({ binId, onNavigate, onBack }) {
     return () => clearInterval(interval);
   }, [aiAnalyzing]);
 
-  const startInlineCamera = async (e) => {
-    if (e) e.stopPropagation();
+  const startInlineCamera = async (deviceId = currentDeviceId) => {
     setError('');
-    
+    setCameraReady(false);
+
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+    }
+
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setError('WebRTC camera not supported. Opening standard file selector.');
+      setCameraStream(null);
+      setUseInlineCamera(false);
       triggerFilePicker();
       return;
     }
 
+    const baseConstraints = { width: { ideal: 1280 }, height: { ideal: 720 } };
+    let stream = null;
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: deviceId
+          ? { deviceId: { exact: deviceId }, ...baseConstraints }
+          : { facingMode: 'environment', ...baseConstraints }
       });
-      setCameraStream(stream);
-      setUseInlineCamera(true);
     } catch (err) {
-      console.error('Failed to get camera stream:', err);
-      setError('Camera access blocked. Opening file selector...');
-      triggerFilePicker();
+      if (deviceId) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment', ...baseConstraints }
+          });
+        } catch (fallbackErr) {
+          console.error('Failed to get camera stream:', fallbackErr);
+          setCameraStream(null);
+          setUseInlineCamera(false);
+          setError('Camera access blocked. Opening file selector...');
+          triggerFilePicker();
+          return;
+        }
+      } else {
+        console.error('Failed to get camera stream:', err);
+        setCameraStream(null);
+        setUseInlineCamera(false);
+        setError('Camera access blocked. Opening file selector...');
+        triggerFilePicker();
+        return;
+      }
     }
+
+    setCameraStream(stream);
+    setUseInlineCamera(true);
   };
 
   const stopInlineCamera = () => {
@@ -127,6 +160,20 @@ export default function AddItem({ binId, onNavigate, onBack }) {
       setCameraStream(null);
     }
     setUseInlineCamera(false);
+    setCameraReady(false);
+  };
+
+  const handleSwitchCamera = () => {
+    setCameraReady(false);
+    const nextDeviceId = switchCamera();
+    startInlineCamera(nextDeviceId);
+  };
+
+  const handleVideoReady = () => {
+    const video = videoRef.current;
+    if (video && video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+      setCameraReady(true);
+    }
   };
 
   useEffect(() => {
@@ -138,10 +185,13 @@ export default function AddItem({ binId, onNavigate, onBack }) {
 
   const capturePhoto = (e) => {
     if (e) e.stopPropagation();
-    if (!videoRef.current) return;
+    const video = videoRef.current;
+    if (!video || !cameraReady || video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
+      setError('Camera is not ready yet. Please wait a moment.');
+      return;
+    }
 
     try {
-      const video = videoRef.current;
       const canvas = document.createElement('canvas');
       canvas.width = video.videoWidth || 640;
       canvas.height = video.videoHeight || 480;
@@ -380,12 +430,32 @@ export default function AddItem({ binId, onNavigate, onBack }) {
                   autoPlay
                   playsInline
                   className="w-full h-full object-cover"
+                  onLoadedData={handleVideoReady}
+                  onLoadedMetadata={handleVideoReady}
                 />
+                {hasMultipleCameras && (
+                  <button
+                    type="button"
+                    onClick={handleSwitchCamera}
+                    aria-label="Switch camera"
+                    className="absolute bottom-4 right-4 z-30 p-2 rounded-full bg-slate-900/80 border border-slate-700/60 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                  >
+                    <SwitchCamera className="w-4 h-4" />
+                  </button>
+                )}
+                {!cameraReady && (
+                  <div className="absolute bottom-16 left-0 right-0 flex justify-center z-20 pointer-events-none">
+                    <span className="px-3 py-1.5 rounded-full bg-slate-900/80 text-slate-300 text-[10px] font-medium">
+                      Camera starting...
+                    </span>
+                  </div>
+                )}
                 <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 px-2 z-20">
                   <button
                     type="button"
                     onClick={capturePhoto}
-                    className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg active:scale-95 transition-transform cursor-pointer"
+                    disabled={!cameraReady || compressing || aiAnalyzing}
+                    className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg active:scale-95 transition-transform cursor-pointer"
                   >
                     <Camera className="w-4 h-4" /> Snap
                   </button>
@@ -404,7 +474,7 @@ export default function AddItem({ binId, onNavigate, onBack }) {
                 <div className="absolute inset-0 bg-slate-950/65 opacity-0 hover:opacity-100 flex flex-col items-center justify-center transition-opacity gap-2.5">
                   <button
                     type="button"
-                    onClick={startInlineCamera}
+                    onClick={(e) => { e.stopPropagation(); startInlineCamera(); }}
                     className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-[10px] font-bold rounded-xl flex items-center gap-1.5 shadow-lg cursor-pointer"
                   >
                     <Camera className="w-3.5 h-3.5" /> Retake Camera
@@ -428,7 +498,7 @@ export default function AddItem({ binId, onNavigate, onBack }) {
                 <div className="flex flex-col gap-2 px-4 w-full max-w-[240px]">
                   <button
                     type="button"
-                    onClick={startInlineCamera}
+                    onClick={(e) => { e.stopPropagation(); startInlineCamera(); }}
                     className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-lg active:scale-95 transition-transform cursor-pointer"
                   >
                     <Camera className="w-4 h-4" /> Start Camera
@@ -447,9 +517,8 @@ export default function AddItem({ binId, onNavigate, onBack }) {
           </div>
         </div>
 
-        {/* Form details, only active once image is snapped */}
-        {imagePreview && (
-          <div className="space-y-4 animate-fade-in">
+        {/* Form details */}
+        <div className="space-y-4 animate-fade-in">
             {/* Parent Bin Selector (if none passed as prop) */}
             {!binId && (
               <div>
@@ -495,7 +564,6 @@ export default function AddItem({ binId, onNavigate, onBack }) {
                   onChange={(e) => setName(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 rounded-xl glass-input text-sm text-slate-100 focus:border-purple-500/50"
                   disabled={loading}
-                  required
                 />
               </div>
             </div>
@@ -590,8 +658,7 @@ export default function AddItem({ binId, onNavigate, onBack }) {
                 disabled={loading}
               />
             </div>
-          </div>
-        )}
+        </div>
 
         {error && (
           <div className="p-3.5 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2 text-xs text-red-300">
@@ -606,16 +673,14 @@ export default function AddItem({ binId, onNavigate, onBack }) {
           </div>
         )}
 
-        {imagePreview && (
-          <button
-            type="submit"
-            disabled={loading || !name.trim()}
-            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-98 transition-transform cursor-pointer"
-          >
-            {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            Save Item
-          </button>
-        )}
+        <button
+          type="submit"
+          disabled={loading || !name.trim()}
+          className="w-full py-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-98 transition-transform cursor-pointer"
+        >
+          {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          Save Item
+        </button>
       </form>
 
     </div>
