@@ -62,16 +62,28 @@ class BackupValidationError extends Error {
   }
 }
 
-// Helper: embed JSON metadata into EXIF ImageDescription of a JPEG/PNG file
+// Helper: embed JSON metadata into a JPEG image's EXIF ImageDescription tag.
+// Forces JPEG output (re-encodes any PNG/WebP) and renames the file to .jpg so
+// the bytes always match the extension. Returns the new /uploads path, or null
+// on failure. Never throws — a metadata failure must not block the save.
 const embedImageMetadata = async (inputPath, metadata) => {
   try {
     const buffer = await sharp(inputPath)
+      .jpeg({ quality: 95 })
       .withMetadata({ exif: { IFD0: { ImageDescription: JSON.stringify(metadata) } } })
       .toBuffer();
-    fs.writeFileSync(inputPath, buffer);
+
+    const dir = path.dirname(inputPath);
+    const base = path.basename(inputPath, path.extname(inputPath));
+    const newPath = path.join(dir, `${base}.jpg`);
+    fs.writeFileSync(newPath, buffer);
+    if (newPath !== inputPath && fs.existsSync(inputPath)) {
+      fs.unlinkSync(inputPath);
+    }
+    return `/uploads/${base}.jpg`;
   } catch (err) {
     console.error('[embedImageMetadata] Failed to embed metadata:', err.message);
-    // Never throw — metadata failure must not block the save
+    return null;
   }
 };
 
@@ -283,27 +295,28 @@ app.post('/api/bins', upload.single('image'), async (req, res) => {
     }
 
     const id = uuidv4();
-    const image_url = req.file ? `/uploads/${req.file.filename}` : null;
+    let image_url = req.file ? `/uploads/${req.file.filename}` : null;
     const created_at = new Date().toISOString();
 
-    await db.run(`
-      INSERT INTO bins (id, qr_id, name, location, image_url)
-      VALUES (?, ?, ?, ?, ?)
-    `, id, qr_id, name, location, image_url);
-
-    // Embed image metadata if an image was uploaded
     if (req.file) {
       const fullImagePath = path.join(__dirname, 'uploads', req.file.filename);
-      await embedImageMetadata(fullImagePath, {
+      const embedded = await embedImageMetadata(fullImagePath, {
         app: 'smart-qr-inventory',
         owner: 'dion',
         entity_type: 'bin',
         entity_id: id,
         entity_name: name,
         qr_id: qr_id,
+        location: location,
         created_at
       });
+      if (embedded) image_url = embedded;
     }
+
+    await db.run(`
+      INSERT INTO bins (id, qr_id, name, location, image_url)
+      VALUES (?, ?, ?, ?, ?)
+    `, id, qr_id, name, location, image_url);
 
     await saveAuditEntry(db, 'CREATE_BIN', `Created bin '${name}'`);
 
@@ -334,15 +347,17 @@ app.put('/api/bins/:id', upload.single('image'), async (req, res) => {
       await quarantineImage(db, existingBin.image_url);
       image_url = `/uploads/${req.file.filename}`;
       const fullImagePath = path.join(__dirname, 'uploads', req.file.filename);
-      await embedImageMetadata(fullImagePath, {
+      const embedded = await embedImageMetadata(fullImagePath, {
         app: 'smart-qr-inventory',
         owner: 'dion',
         entity_type: 'bin',
         entity_id: id,
         entity_name: name || existingBin.name,
         qr_id: existingBin.qr_id,
+        location: location || existingBin.location,
         created_at: new Date().toISOString()
       });
+      if (embedded) image_url = embedded;
     }
 
     await db.run(
@@ -475,7 +490,7 @@ app.post('/api/items', upload.single('image'), async (req, res) => {
     }
 
     const id = uuidv4();
-    const image_url = req.file ? `/uploads/${req.file.filename}` : null;
+    let image_url = req.file ? `/uploads/${req.file.filename}` : null;
     const created_at = new Date().toISOString();
 
     // search_tags can be passed as JSON string or array, standard multipart forms send as string
@@ -493,15 +508,9 @@ app.post('/api/items', upload.single('image'), async (req, res) => {
       }
     }
 
-    await db.run(`
-      INSERT INTO items (id, bin_id, name, description, image_url, search_tags, visible_text)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `, id, bin_id, name, description || '', image_url, tagsString, visible_text || '');
-
-    // Embed image metadata if an image was uploaded
     if (req.file) {
       const fullImagePath = path.join(__dirname, 'uploads', req.file.filename);
-      await embedImageMetadata(fullImagePath, {
+      const embedded = await embedImageMetadata(fullImagePath, {
         app: 'smart-qr-inventory',
         owner: 'dion',
         entity_type: 'item',
@@ -509,9 +518,17 @@ app.post('/api/items', upload.single('image'), async (req, res) => {
         entity_name: name,
         bin_id: bin_id,
         bin_name: bin.name,
+        location: bin.location,
+        qr_id: bin.qr_id,
         created_at
       });
+      if (embedded) image_url = embedded;
     }
+
+    await db.run(`
+      INSERT INTO items (id, bin_id, name, description, image_url, search_tags, visible_text)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `, id, bin_id, name, description || '', image_url, tagsString, visible_text || '');
 
     await saveAuditEntry(db, 'CREATE_ITEM', `Added item '${name}' to bin '${bin.name}'`);
 
@@ -548,7 +565,7 @@ app.put('/api/items/:id', upload.single('image'), async (req, res) => {
       await quarantineImage(db, existingItem.image_url);
       image_url = `/uploads/${req.file.filename}`;
       const fullImagePath = path.join(__dirname, 'uploads', req.file.filename);
-      await embedImageMetadata(fullImagePath, {
+      const embedded = await embedImageMetadata(fullImagePath, {
         app: 'smart-qr-inventory',
         owner: 'dion',
         entity_type: 'item',
@@ -556,8 +573,11 @@ app.put('/api/items/:id', upload.single('image'), async (req, res) => {
         entity_name: name || existingItem.name,
         bin_id: existingItem.bin_id,
         bin_name: bin ? bin.name : '',
+        location: bin ? bin.location : '',
+        qr_id: bin ? bin.qr_id : '',
         created_at: new Date().toISOString()
       });
+      if (embedded) image_url = embedded;
     }
 
     // Parse search_tags
