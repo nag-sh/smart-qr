@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, useSearchParams, useNavigate } from 'react-router-dom';
 import { parseModalStack, stackToSearchString } from './modalStack.js';
 import { QrCode, Settings as SettingsIcon, Printer, Info, ArrowLeft, Plus } from 'lucide-react';
@@ -73,6 +73,12 @@ function AppContent() {
     };
   }, [showPrintHelper]);
 
+  // How many modal layers this session pushed onto history. The in-app back
+  // button pops during normal navigation, but falls back to the parent stack URL
+  // when the modal was opened via a direct load / reload / shared link — there is
+  // no prior entry then, so navigate(-1) would exit the app or get stuck.
+  const pushDepth = useRef(0);
+
   const onNavigate = (viewName, params = {}) => {
     if (viewName === 'search') {
       navigate('/');
@@ -81,10 +87,19 @@ function AppContent() {
     }
     const newStack = [...stack, { type: viewName, params }];
     navigate({ search: stackToSearchString(newStack) });
+    pushDepth.current += 1;
     window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
-  const onBack = () => stack.length <= 1 ? navigate('/') : navigate(-1);
+  const onBack = () => {
+    if (pushDepth.current > 0) {
+      pushDepth.current -= 1;
+      navigate(-1);
+    } else {
+      const parentSearch = stackToSearchString(stack.slice(0, -1));
+      navigate(parentSearch ? { search: parentSearch } : '/');
+    }
+  };
 
   // central printing trigger
   const handlePrintBin = (qrId, binName) => {
@@ -116,7 +131,7 @@ function AppContent() {
       }
 
       return (
-        <div key={i} style={{ position: 'fixed', inset: 0, zIndex: 40 + i, pointerEvents: isLast ? 'auto' : 'none' }}>
+        <div key={i} style={{ position: 'fixed', inset: 0, zIndex: 50 + i, pointerEvents: isLast ? 'auto' : 'none' }}>
           <ModalShell onClose={onBack} hideClose={hideClose}>
             {view}
           </ModalShell>
