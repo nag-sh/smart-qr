@@ -3,14 +3,13 @@ import { Search as SearchIcon, MapPin, QrCode, LayoutGrid, List, Image as ImageI
 import { getBins, searchItems, batchDeleteBins, batchUpdateBinLocations, batchDeleteItems, batchMoveItems } from '../services/storage';
 import EntityList from '../components/EntityList';
 
-export default function Search({ onNavigate, showQuickAdd, setShowQuickAdd }) {
+export default function Search({ onNavigate, onBack, modalTypes }) {
   const [query, setQuery] = useState('');
   const [layoutMode, setLayoutMode] = useState(() => {
     const saved = localStorage.getItem('view_mode_search');
     const valid = ['thumbnail', 'detailed', 'gallery'];
     return valid.includes(saved) ? saved : 'thumbnail';
   }); // 'thumbnail' | 'detailed' | 'gallery'
-  const [showFilters, setShowFilters] = useState(false);
 
   const [manageMode, setManageMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -520,9 +519,9 @@ export default function Search({ onNavigate, showQuickAdd, setShowQuickAdd }) {
 
         <div className="flex items-center gap-2 shrink-0">
           <button
-            onClick={() => setShowFilters(true)}
+            onClick={() => onNavigate('filters')}
             className={`relative p-2.5 rounded-xl transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50 bg-slate-900/60 border border-slate-800/80 ${
-              showFilters || activeFilterCount > 0
+              modalTypes.includes('filters') || activeFilterCount > 0
                 ? 'bg-purple-600 text-white shadow shadow-purple-950/20'
                 : 'text-slate-500 hover:text-slate-300'
             }`}
@@ -676,10 +675,10 @@ export default function Search({ onNavigate, showQuickAdd, setShowQuickAdd }) {
       )}
 
       {/* Quick Add Modal */}
-      {showQuickAdd && (
+      {modalTypes.includes('quick-add') && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/30 backdrop-blur-md"
-          onClick={() => setShowQuickAdd(false)}
+          onClick={onBack}
           role="dialog"
           aria-modal="true"
           aria-label="Quick Add"
@@ -689,7 +688,7 @@ export default function Search({ onNavigate, showQuickAdd, setShowQuickAdd }) {
             onClick={(e) => e.stopPropagation()}
           >
             <button
-              onClick={() => setShowQuickAdd(false)}
+              onClick={onBack}
               className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
               title="Back to Search"
               aria-label="Back to Search"
@@ -705,7 +704,6 @@ export default function Search({ onNavigate, showQuickAdd, setShowQuickAdd }) {
             <div className="grid grid-cols-1 gap-3">
               <button
                 onClick={() => {
-                  setShowQuickAdd(false);
                   onNavigate('create-bin');
                 }}
                 className="flex items-center gap-3 p-4 rounded-2xl glass-card border border-slate-800/60 hover:border-purple-500/30 hover:bg-slate-900/60 transition-all cursor-pointer text-left group"
@@ -722,7 +720,6 @@ export default function Search({ onNavigate, showQuickAdd, setShowQuickAdd }) {
 
               <button
                 onClick={() => {
-                  setShowQuickAdd(false);
                   onNavigate('add-item');
                 }}
                 className="flex items-center gap-3 p-4 rounded-2xl glass-card border border-slate-800/60 hover:border-pink-500/30 hover:bg-slate-900/60 transition-all cursor-pointer text-left group"
@@ -741,10 +738,10 @@ export default function Search({ onNavigate, showQuickAdd, setShowQuickAdd }) {
         </div>
       )}
       {/* Filter Drawer */}
-      {showFilters && (
+      {modalTypes.includes('filters') && (
         <div
           className="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-sm"
-          onClick={() => setShowFilters(false)}
+          onClick={onBack}
           role="dialog"
           aria-modal="true"
           aria-label="Filters"
@@ -755,7 +752,7 @@ export default function Search({ onNavigate, showQuickAdd, setShowQuickAdd }) {
           >
             <div className="flex items-center justify-between p-4 border-b border-slate-800/60 shrink-0">
               <button
-                onClick={() => setShowFilters(false)}
+                onClick={onBack}
                 className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
                 title="Back to Search"
                 aria-label="Back to Search"

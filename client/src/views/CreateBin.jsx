@@ -3,7 +3,7 @@ import { Box, MapPin, Camera, AlertCircle, RefreshCw, Save, ArrowLeft, QrCode, S
 import imageCompression from 'browser-image-compression';
 import { createBin, getBins } from '../services/storage';
 
-export default function CreateBin({ qrId, onNavigate, onPrintBin }) {
+export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack }) {
   // Mode switcher when qrId is undefined: 'choice' | 'form'
   const [flowMode, setFlowMode] = useState(qrId ? 'form' : 'choice');
   const [generateMode, setGenerateMode] = useState(false); // True if system generating QR
@@ -206,7 +206,7 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin }) {
     return (
       <div className="w-full max-w-md mx-auto py-6 px-4 space-y-6 relative overflow-hidden">
         <button
-          onClick={() => onNavigate('search')}
+          onClick={() => onBack()}
           className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-5 h-5" />

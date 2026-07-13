@@ -5,14 +5,13 @@ import {
 import { searchItems, getBin, getBins, updateItem, deleteItem, batchManageItems } from '../services/storage';
 import imageCompression from 'browser-image-compression';
 
-export default function ItemDetails({ onNavigate, itemId }) {
+export default function ItemDetails({ onNavigate, itemId, onBack, modalTypes }) {
   const [item, setItem] = useState(null);
   const [bin, setBin] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   // Edit state
-  const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editTags, setEditTags] = useState('');
@@ -101,6 +100,19 @@ export default function ItemDetails({ onNavigate, itemId }) {
     };
   }, [showOverflowMenu]);
 
+  useEffect(() => {
+    if (modalTypes?.includes('edit-item') && item) {
+      setEditName(item.name || '');
+      setEditDescription(item.description || '');
+      setEditTags((item.search_tags || []).join(', '));
+      setEditVisibleText(item.visible_text || '');
+      setEditBinId(item.bin_id || '');
+      setEditImageFile(null);
+      setEditImagePreview(null);
+      setError('');
+    }
+  }, [modalTypes, item]);
+
   const startEdit = () => {
     if (!item) return;
     setEditName(item.name || '');
@@ -110,7 +122,6 @@ export default function ItemDetails({ onNavigate, itemId }) {
     setEditBinId(item.bin_id || '');
     setEditImageFile(null);
     setEditImagePreview(null);
-    setEditing(true);
     setError('');
   };
 
@@ -165,7 +176,7 @@ export default function ItemDetails({ onNavigate, itemId }) {
         setBin(null);
       }
 
-      setEditing(false);
+      onBack();
     } catch (err) {
       console.error(err);
       setError(err.message || 'Failed to update item');
@@ -206,7 +217,7 @@ export default function ItemDetails({ onNavigate, itemId }) {
     return (
     <div className="w-full max-w-4xl min-w-[min(80vw,56rem)] mx-auto py-6 px-4 space-y-6">
         <button
-          onClick={() => onNavigate('search')}
+          onClick={() => onBack()}
           className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -230,7 +241,7 @@ export default function ItemDetails({ onNavigate, itemId }) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <button
-          onClick={() => onNavigate('search')}
+          onClick={() => onBack()}
           className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -251,7 +262,7 @@ export default function ItemDetails({ onNavigate, itemId }) {
               <button
                 onClick={() => {
                   setShowOverflowMenu(false);
-                  startEdit();
+                  onNavigate('edit-item', { itemId });
                 }}
                 className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-2 transition-colors cursor-pointer"
               >
@@ -273,15 +284,15 @@ export default function ItemDetails({ onNavigate, itemId }) {
       </div>
 
       {/* Edit modal */}
-      {editing && (
+      {modalTypes?.includes('edit-item') && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm"
-          onClick={(e) => { if (e.target === e.currentTarget) setEditing(false); }}
+          onClick={(e) => { if (e.target === e.currentTarget) onBack(); }}
         >
           <div className="glass-panel w-full max-w-2xl rounded-3xl p-6 shadow-2xl border border-slate-800 relative max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <button
-                onClick={() => setEditing(false)}
+                onClick={() => onBack()}
                 disabled={saving}
                 className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
                 aria-label="Back"
@@ -401,7 +412,7 @@ export default function ItemDetails({ onNavigate, itemId }) {
 
             <div className="mt-6 flex items-center justify-end gap-2">
               <button
-                onClick={() => setEditing(false)}
+                onClick={() => onBack()}
                 disabled={saving}
                 className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold transition-colors cursor-pointer border border-slate-700/50"
               >

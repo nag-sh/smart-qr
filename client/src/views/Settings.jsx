@@ -9,7 +9,7 @@ import {
   getLocalExportData, restoreLocalData
 } from '../services/storage';
 
-export default function Settings({ onNavigate }) {
+export default function Settings({ onNavigate, onBack, modalTypes }) {
   const [apiKey, setApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -32,13 +32,11 @@ export default function Settings({ onNavigate }) {
   const [syncSuccess, setSyncSuccess] = useState('');
   const [syncError, setSyncError] = useState('');
   const [deleteUnreferenced, setDeleteUnreferenced] = useState(false);
-  const [showDeleteWarning, setShowDeleteWarning] = useState(false);
   const [pendingSyncDirection, setPendingSyncDirection] = useState(null); // 'pull' | 'push'
 
   // Cloud server configuration
   const [cloudUrl, setCloudUrl] = useState('');
   const [cloudStatus, setCloudStatus] = useState('disconnected');
-  const [showCloudConfig, setShowCloudConfig] = useState(false);
   const [cloudInput, setCloudInput] = useState('https://smartqr.nag.sh/api');
   const [connecting, setConnecting] = useState(false);
   const [cloudToken, setCloudToken] = useState('');
@@ -114,14 +112,14 @@ export default function Settings({ onNavigate }) {
     clearSyncFeedback();
     if (deleteUnreferenced) {
       setPendingSyncDirection(direction);
-      setShowDeleteWarning(true);
+      onNavigate('settings-warning');
     } else {
       direction === 'pull' ? handleSyncPull() : handleSyncPush();
     }
   };
 
   const confirmSync = () => {
-    setShowDeleteWarning(false);
+    onBack();
     pendingSyncDirection === 'pull' ? handleSyncPull() : handleSyncPush();
     setPendingSyncDirection(null);
   };
@@ -151,7 +149,7 @@ export default function Settings({ onNavigate }) {
   const handleCloudClick = () => {
     setCloudInput(cloudUrl || 'https://smartqr.nag.sh/api');
     setCloudTokenInput(cloudToken || '');
-    setShowCloudConfig(true);
+    onNavigate('settings-cloud');
   };
 
   const handleCloudConnect = async () => {
@@ -169,7 +167,7 @@ export default function Settings({ onNavigate }) {
     }
     setCloudUrl(trimmed);
     setCloudToken(token);
-    setShowCloudConfig(false);
+    onBack();
     await testCloudConnection(trimmed, token);
   };
 
@@ -180,11 +178,11 @@ export default function Settings({ onNavigate }) {
     setCloudToken('');
     setCloudTokenInput('');
     setCloudStatus('disconnected');
-    setShowCloudConfig(false);
+    onBack();
   };
 
   const handleCloudCancel = () => {
-    setShowCloudConfig(false);
+    onBack();
   };
 
   useEffect(() => {
@@ -770,11 +768,11 @@ export default function Settings({ onNavigate }) {
 
 
       {/* DELETE-UNREFERENCED DANGER MODAL */}
-      {showDeleteWarning && (
+      {modalTypes?.includes('settings-warning') && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm">
           <div className="glass-panel w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-red-500/20 space-y-5 relative">
             <button
-              onClick={() => { setShowDeleteWarning(false); setPendingSyncDirection(null); }}
+              onClick={() => { onBack(); setPendingSyncDirection(null); }}
               className="absolute top-4 left-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
               aria-label="Back"
             >
@@ -808,7 +806,7 @@ export default function Settings({ onNavigate }) {
                 I understand — proceed with sync
               </button>
               <button
-                onClick={() => { setShowDeleteWarning(false); setPendingSyncDirection(null); }}
+                onClick={() => { onBack(); setPendingSyncDirection(null); }}
                 className="w-full py-2.5 rounded-xl border border-slate-700/60 hover:bg-slate-800 text-slate-300 font-semibold text-xs cursor-pointer transition-all"
               >
                 Cancel
@@ -819,7 +817,7 @@ export default function Settings({ onNavigate }) {
       )}
 
       {/* CLOUD SERVER CONFIGURATION MODAL */}
-      {showCloudConfig && (
+      {modalTypes?.includes('settings-cloud') && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm"
           onClick={handleCloudCancel}

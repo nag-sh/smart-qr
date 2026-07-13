@@ -8,7 +8,7 @@ import { getBin, getBins, updateBin, deleteBin, batchManageItems } from '../serv
 import imageCompression from 'browser-image-compression';
 import EntityList from '../components/EntityList';
 
-export default function BinDetails({ binId, onNavigate, onPrintBin }) {
+export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, modalTypes }) {
   const [bin, setBin] = useState(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,7 +27,6 @@ export default function BinDetails({ binId, onNavigate, onPrintBin }) {
 
   // 2. Delete/Batch state
   const [deletingBin, setDeletingBin] = useState(false);
-  const [showBatchModal, setShowBatchModal] = useState(false);
   const [allBins, setAllBins] = useState([]);
   const [selectedItems, setSelectedItems] = useState(new Set());
   const [batchAction, setBatchAction] = useState('reassign'); // 'reassign' | 'delete'
@@ -110,7 +109,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin }) {
     return (
       <div className="w-full max-w-md mx-auto py-6 px-4 space-y-4">
         <button
-          onClick={() => onNavigate('search')}
+          onClick={() => onBack()}
           className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -174,7 +173,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin }) {
         setAllBins(binsList.filter(b => b.id !== bin.id));
         setSelectedItems(new Set(items.map(i => i.id)));
         setBatchTargetBin(binsList.find(b => b.id !== bin.id)?.id || '');
-        setShowBatchModal(true);
+        onNavigate('batch-manage', { binId: bin.id });
       } else {
         alert(err.message || 'Failed to delete bin');
       }
@@ -188,7 +187,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin }) {
     setBatchWorking(true);
     try {
       await batchManageItems(bin.id, batchAction, Array.from(selectedItems), batchTargetBin);
-      setShowBatchModal(false);
+      onBack();
       // Try deleting now empty bin
       try {
         await deleteBin(bin.id);
@@ -208,7 +207,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin }) {
       {/* Navigation header */}
       <div className="flex items-center justify-between">
         <button
-          onClick={() => onNavigate('search')}
+          onClick={() => onBack()}
           className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -520,11 +519,11 @@ export default function BinDetails({ binId, onNavigate, onPrintBin }) {
       </div>
 
       {/* 1. BATCH MANAGE ITEMS MODAL */}
-      {showBatchModal && (
+      {modalTypes?.includes('batch-manage') && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm">
           <div className="glass-panel w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-5 relative max-h-[90vh] flex flex-col justify-between">
             <button
-              onClick={() => setShowBatchModal(false)}
+              onClick={() => onBack()}
               className="absolute top-4 left-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
               aria-label="Back"
             >
@@ -617,7 +616,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin }) {
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowBatchModal(false)}
+                  onClick={() => onBack()}
                   className="flex-1 py-3 rounded-xl border border-slate-700/60 hover:bg-slate-800 text-slate-300 font-bold text-xs cursor-pointer"
                 >
                   Cancel

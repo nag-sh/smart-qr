@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, useSearchParams, useNavigate } from 'react-router-dom';
+import { parseModalStack, stackToSearchString } from './modalStack.js';
 import { QrCode, Settings as SettingsIcon, Printer, Info, ArrowLeft, Plus } from 'lucide-react';
 
 // Import Views
@@ -44,11 +45,11 @@ function AppContent() {
   const [showPrintHelper, setShowPrintHelper] = useState(false);
   const [printCountdown, setPrintCountdown] = useState(5);
 
-  // Modal state: single-slot overlay above the persistent Search base
-  const [activeModal, setActiveModal] = useState(null); // { type, params } | null
-
-  // Quick Add modal trigger state (lifted from Search so it can be opened from bottom nav)
-  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  // Modal stack: derived from the URL (?modal=...&...) so it is linkable/layered
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const stack = parseModalStack(searchParams);
+  const modalTypes = stack.map(l => l.type);
 
   // Auto-close print helper popup after 5 seconds to stay out of the user's way
   useEffect(() => {
@@ -72,16 +73,18 @@ function AppContent() {
     };
   }, [showPrintHelper]);
 
-  // Bridge: same (viewName, params) interface views already use → modal state
   const onNavigate = (viewName, params = {}) => {
     if (viewName === 'search') {
-      setActiveModal(null);
+      navigate('/');
       window.scrollTo({ top: 0, behavior: 'instant' });
       return;
     }
-    setActiveModal({ type: viewName, params });
+    const newStack = [...stack, { type: viewName, params }];
+    navigate({ search: stackToSearchString(newStack) });
     window.scrollTo({ top: 0, behavior: 'instant' });
   };
+
+  const onBack = () => stack.length <= 1 ? navigate('/') : navigate(-1);
 
   // central printing trigger
   const handlePrintBin = (qrId, binName) => {
@@ -93,52 +96,44 @@ function AppContent() {
     }, 250);
   };
 
-  const renderModal = () => {
-    if (!activeModal) return null;
+  const renderModalStack = () => {
+    if (stack.length === 0) return null;
+    return stack.map((layer, i) => {
+      const { type, params } = layer;
+      const hideClose = ['restore-points', 'bin-details', 'item-details', 'add-item', 'create-bin'].includes(type);
+      const isLast = i === stack.length - 1;
 
-    const { type, params = {} } = activeModal;
+      let view;
+      switch (type) {
+        case 'scanner': view = <Scanner onNavigate={onNavigate} onBack={onBack} />; break;
+        case 'create-bin': view = <CreateBin qrId={params.qrId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} />; break;
+        case 'bin-details': view = <BinDetails binId={params.binId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} modalTypes={modalTypes} />; break;
+        case 'item-details': view = <ItemDetails itemId={params.itemId} onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} />; break;
+        case 'add-item': view = <AddItem binId={params.binId} onNavigate={onNavigate} onBack={onBack} />; break;
+        case 'settings': view = <Settings onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} />; break;
+        case 'restore-points': view = <RestorePoints onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} />; break;
+        default: return null;
+      }
 
-    return (
-      <ModalShell
-        onClose={() => onNavigate('search')}
-        hideClose={['restore-points', 'bin-details', 'item-details', 'add-item', 'create-bin'].includes(type)}
-      >
-        {type === 'scanner' && <Scanner onNavigate={onNavigate} />}
-        {type === 'create-bin' && (
-          <CreateBin
-            qrId={params.qrId}
-            onNavigate={onNavigate}
-            onPrintBin={handlePrintBin}
-          />
-        )}
-        {type === 'bin-details' && (
-          <BinDetails
-            binId={params.binId}
-            onNavigate={onNavigate}
-            onPrintBin={handlePrintBin}
-          />
-        )}
-        {type === 'item-details' && (
-          <ItemDetails itemId={params.itemId} onNavigate={onNavigate} />
-        )}
-        {type === 'add-item' && (
-          <AddItem binId={params.binId} onNavigate={onNavigate} />
-        )}
-        {type === 'settings' && <Settings onNavigate={onNavigate} />}
-        {type === 'restore-points' && <RestorePoints onNavigate={onNavigate} />}
-      </ModalShell>
-    );
+      return (
+        <div key={i} style={{ position: 'fixed', inset: 0, zIndex: 40 + i, pointerEvents: isLast ? 'auto' : 'none' }}>
+          <ModalShell onClose={onBack} hideClose={hideClose}>
+            {view}
+          </ModalShell>
+        </div>
+      );
+    });
   };
 
   return (
     <div className="min-h-screen bg-slate-950 pb-28 text-slate-100 flex flex-col justify-between">
       {/* Main Content Area — Search is always the base view */}
       <main className="flex-1 w-full max-w-4xl mx-auto px-2">
-        <Search onNavigate={onNavigate} showQuickAdd={showQuickAdd} setShowQuickAdd={setShowQuickAdd} />
+        <Search onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} />
       </main>
 
       {/* Glassy modal overlay for all non-search views */}
-      {renderModal()}
+      {renderModalStack()}
 
       {/* Floating Bottom Navigation Bar (Hidden when printing label) */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-md z-40 no-print">
@@ -148,7 +143,7 @@ function AppContent() {
           <button
             onClick={() => onNavigate('scanner')}
             className={`flex flex-col items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
-              activeModal?.type === 'scanner'
+              stack[stack.length - 1]?.type === 'scanner'
                 ? 'text-purple-400 bg-purple-500/10'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
@@ -159,7 +154,7 @@ function AppContent() {
 
           {/* Quick Add Tab */}
           <button
-            onClick={() => setShowQuickAdd(true)}
+            onClick={() => onNavigate('quick-add')}
             className="flex flex-col items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer text-slate-400 hover:text-slate-200"
           >
             <Plus className="w-5 h-5" />

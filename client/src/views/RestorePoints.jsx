@@ -7,7 +7,7 @@ import {
   getAuditLog, restoreAuditEntry, cherryPickAuditEntry, restoreSelectedChanges
 } from '../services/storage';
 
-export default function RestorePoints({ onNavigate }) {
+export default function RestorePoints({ onNavigate, onBack, modalTypes }) {
   // Audit timeline state
   const [auditLog, setAuditLog] = useState([]);
   const [auditLoading, setAuditLoading] = useState(false);
@@ -25,7 +25,6 @@ export default function RestorePoints({ onNavigate }) {
 
   // Multi-select restore state
   const [selectedChangesToRestore, setSelectedChangesToRestore] = useState(new Set());
-  const [showMultiRestoreModal, setShowMultiRestoreModal] = useState(false);
   const [multiRestoreConflicts, setMultiRestoreConflicts] = useState([]);
 
   // Details modal state
@@ -128,7 +127,7 @@ export default function RestorePoints({ onNavigate }) {
     setMultiRestoreConflicts([]);
     setRestoreSuccess('');
     setRestoreError('');
-    setShowMultiRestoreModal(true);
+    onNavigate('restore-multi');
   };
 
   const handleMultiRestoreApply = async () => {
@@ -238,7 +237,7 @@ export default function RestorePoints({ onNavigate }) {
                 {list.map(entry => (
                   <div
                     key={entry.id}
-                    onClick={() => setSelectedAuditEntry(entry)}
+                    onClick={() => { setSelectedAuditEntry(entry); onNavigate('restore-details'); }}
                     className={`p-3 bg-slate-900/40 border rounded-xl flex items-center justify-between gap-4 hover:bg-slate-900/65 hover:border-purple-500/30 transition-all cursor-pointer ${
                       selectedChangesToRestore.has(entry.id) ? 'border-purple-500 bg-purple-950/10' : 'border-slate-800/60'
                     }`}
@@ -278,6 +277,7 @@ export default function RestorePoints({ onNavigate }) {
                         onClick={(e) => {
                           e.stopPropagation();
                           handleStartCherryPick(entry);
+                          onNavigate('restore-cherry');
                         }}
                         className="py-1.5 px-2.5 rounded-lg border border-slate-800 bg-slate-950/60 hover:bg-purple-600/10 hover:border-purple-500/20 text-[10px] font-bold text-slate-300 hover:text-purple-300 flex items-center gap-1 cursor-pointer transition-all shrink-0"
                         title="Cherry-pick specific bins/items instead of full overwrite"
@@ -290,6 +290,7 @@ export default function RestorePoints({ onNavigate }) {
                           e.stopPropagation();
                           setRestoreTarget(entry);
                           setCherryPickMode(false);
+                          onNavigate('restore-revert');
                         }}
                         className="py-1.5 px-2.5 rounded-lg border border-slate-700 hover:bg-slate-800 text-[10px] font-bold text-slate-300 flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0"
                         title="Overwrite entire database to match this checkpoint"
@@ -313,7 +314,7 @@ export default function RestorePoints({ onNavigate }) {
       {/* Header with back button */}
       <div className="flex items-center gap-3">
         <button
-          onClick={() => onNavigate?.('settings')}
+          onClick={() => onBack()}
           className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
           aria-label="Back to Settings"
         >
@@ -349,11 +350,11 @@ export default function RestorePoints({ onNavigate }) {
       )}
 
       {/* Restore / Cherry-pick confirmation modal */}
-      {restoreTarget && (
+      {(modalTypes?.includes('restore-revert') || modalTypes?.includes('restore-cherry')) && restoreTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm">
           <div className={`glass-panel w-full ${cherryPickMode ? 'max-w-2xl' : 'max-w-sm'} rounded-3xl p-6 shadow-2xl border border-purple-500/20 space-y-5 relative max-h-[90vh] flex flex-col justify-between`}>
             <button
-              onClick={() => { if (!restoring) { setRestoreTarget(null); setCherryPickMode(false); } }}
+              onClick={() => { if (!restoring) { onBack(); } }}
               className="absolute top-4 left-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
               aria-label="Back"
               disabled={restoring}
@@ -489,7 +490,7 @@ export default function RestorePoints({ onNavigate }) {
               )}
               <div className="flex gap-2">
                 <button
-                  onClick={() => { setRestoreTarget(null); setCherryPickMode(false); }}
+                  onClick={() => { onBack(); }}
                   disabled={restoring}
                   className="flex-1 py-2.5 rounded-xl border border-slate-700/60 hover:bg-slate-800 text-slate-300 font-bold text-xs cursor-pointer transition-all"
                 >
@@ -521,11 +522,11 @@ export default function RestorePoints({ onNavigate }) {
       )}
 
       {/* Multi-change cherry-pick restore modal */}
-      {showMultiRestoreModal && (
+      {modalTypes?.includes('restore-multi') && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm">
           <div className="glass-panel w-full max-w-md rounded-3xl p-6 shadow-2xl border border-purple-500/20 space-y-5 relative max-h-[90vh] flex flex-col justify-between">
             <button
-              onClick={() => { if (!restoring) setShowMultiRestoreModal(false); }}
+              onClick={() => { if (!restoring) onBack(); }}
               className="absolute top-4 left-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
               aria-label="Back"
               disabled={restoring}
@@ -576,7 +577,7 @@ export default function RestorePoints({ onNavigate }) {
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowMultiRestoreModal(false)}
+                  onClick={() => onBack()}
                   disabled={restoring}
                   className="flex-1 py-2.5 rounded-xl border border-slate-700/60 hover:bg-slate-800 text-slate-300 font-bold text-xs cursor-pointer transition-all"
                 >
@@ -598,13 +599,13 @@ export default function RestorePoints({ onNavigate }) {
       )}
 
       {/* Audit entry details modal */}
-      {selectedAuditEntry && (
+      {modalTypes?.includes('restore-details') && selectedAuditEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
           <div className="glass-panel w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl border border-purple-500/20 flex flex-col max-h-[85vh]">
             {/* Header */}
             <div className="p-6 border-b border-slate-800/60 bg-gradient-to-b from-purple-950/20 to-transparent flex items-start justify-between">
               <button
-                onClick={() => setSelectedAuditEntry(null)}
+                onClick={() => onBack()}
                 className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
                 aria-label="Back"
               >
@@ -752,7 +753,7 @@ export default function RestorePoints({ onNavigate }) {
               <button
                 onClick={() => {
                   toggleSelectChange(selectedAuditEntry.id);
-                  setSelectedAuditEntry(null);
+                  onBack();
                 }}
                 className={`py-2 px-3.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
                   selectedChangesToRestore.has(selectedAuditEntry.id)
@@ -768,6 +769,7 @@ export default function RestorePoints({ onNavigate }) {
                   onClick={() => {
                     handleStartCherryPick(selectedAuditEntry);
                     setSelectedAuditEntry(null);
+                    onNavigate('restore-cherry');
                   }}
                   className="py-2 px-3.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/30 text-purple-300 font-bold text-xs cursor-pointer flex items-center gap-1.5 transition-colors"
                 >
@@ -778,6 +780,7 @@ export default function RestorePoints({ onNavigate }) {
                     setRestoreTarget(selectedAuditEntry);
                     setCherryPickMode(false);
                     setSelectedAuditEntry(null);
+                    onNavigate('restore-revert');
                   }}
                   className="py-2 px-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold text-xs cursor-pointer flex items-center gap-1.5 transition-colors"
                 >

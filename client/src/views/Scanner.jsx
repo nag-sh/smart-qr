@@ -3,7 +3,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { Camera, CameraOff, QrCode, AlertCircle, ArrowRight, Keyboard, RefreshCw } from 'lucide-react';
 import { getBin } from '../services/storage';
 
-export default function Scanner({ onNavigate }) {
+export default function Scanner({ onNavigate, onBack }) {
   const [scanResult, setScanResult] = useState('');
   const [error, setError] = useState('');
   const [isScanning, setIsScanning] = useState(false);
