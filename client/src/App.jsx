@@ -13,7 +13,7 @@ import Settings from './views/Settings';
 import RestorePoints from './views/RestorePoints';
 
 // ─── Glassy modal shell (rendered above Search + bottom nav) ───────────────
-function ModalShell({ onClose, children }) {
+function ModalShell({ onClose, hideClose = false, children }) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/30 backdrop-blur-md"
@@ -21,13 +21,15 @@ function ModalShell({ onClose, children }) {
     >
       <div className="w-[92%] sm:w-auto max-w-4xl" onClick={(e) => e.stopPropagation()}>
         <div className="glass-panel-modal w-full max-h-[90vh] overflow-y-auto rounded-3xl relative animate-in fade-in zoom-in-95 duration-200">
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
-            aria-label="Back to Search"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
+          {!hideClose && (
+            <button
+              onClick={onClose}
+              className="absolute top-4 left-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              aria-label="Back to Search"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          )}
           {children}
         </div>
       </div>
@@ -97,7 +99,10 @@ function AppContent() {
     const { type, params = {} } = activeModal;
 
     return (
-      <ModalShell onClose={() => onNavigate('search')}>
+      <ModalShell
+        onClose={() => onNavigate('search')}
+        hideClose={['restore-points', 'bin-details', 'item-details', 'add-item', 'create-bin'].includes(type)}
+      >
         {type === 'scanner' && <Scanner onNavigate={onNavigate} />}
         {type === 'create-bin' && (
           <CreateBin
@@ -173,7 +178,7 @@ function AppContent() {
                 setShowPrintHelper(false);
                 setPrintData(null);
               }}
-              className="absolute top-4 right-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              className="absolute top-4 left-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
               aria-label="Back to Search"
             >
               <ArrowLeft className="w-5 h-5" />

@@ -207,9 +207,9 @@ export default function ItemDetails({ onNavigate, itemId }) {
     <div className="w-full max-w-4xl min-w-[min(80vw,56rem)] mx-auto py-6 px-4 space-y-6">
         <button
           onClick={() => onNavigate('search')}
-          className="flex items-center gap-2 text-sm font-semibold text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+          className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
         >
-          <ArrowLeft className="w-4 h-4" /> Back to Search
+          <ArrowLeft className="w-5 h-5" />
         </button>
 
         <div className="glass-panel rounded-3xl p-8 text-center shadow-2xl border border-slate-800/80">
@@ -231,9 +231,9 @@ export default function ItemDetails({ onNavigate, itemId }) {
       <div className="flex items-center justify-between">
         <button
           onClick={() => onNavigate('search')}
-          className="flex items-center gap-2 text-sm font-semibold text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+          className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
         >
-          <ArrowLeft className="w-4 h-4" /> Back to Search
+          <ArrowLeft className="w-5 h-5" />
         </button>
 
         <div className="relative" ref={overflowMenuRef}>
@@ -280,7 +280,6 @@ export default function ItemDetails({ onNavigate, itemId }) {
         >
           <div className="glass-panel w-full max-w-2xl rounded-3xl p-6 shadow-2xl border border-slate-800 relative max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold text-slate-200">Edit Item</h2>
               <button
                 onClick={() => setEditing(false)}
                 disabled={saving}
@@ -289,6 +288,7 @@ export default function ItemDetails({ onNavigate, itemId }) {
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
+              <h2 className="text-sm font-bold text-slate-200">Edit Item</h2>
             </div>
 
             {error && (

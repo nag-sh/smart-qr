@@ -111,9 +111,9 @@ export default function BinDetails({ binId, onNavigate, onPrintBin }) {
       <div className="w-full max-w-md mx-auto py-6 px-4 space-y-4">
         <button
           onClick={() => onNavigate('search')}
-          className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+          className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
         >
-          <ArrowLeft className="w-4 h-4" /> Back to Search
+          <ArrowLeft className="w-5 h-5" />
         </button>
         <div className="glass-panel rounded-3xl p-6 text-center space-y-4">
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto" />
@@ -209,9 +209,9 @@ export default function BinDetails({ binId, onNavigate, onPrintBin }) {
       <div className="flex items-center justify-between">
         <button
           onClick={() => onNavigate('search')}
-          className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+          className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
         >
-          <ArrowLeft className="w-4 h-4" /> Back
+          <ArrowLeft className="w-5 h-5" />
         </button>
         
         <div className="flex items-center gap-2">
@@ -525,7 +525,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin }) {
           <div className="glass-panel w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-5 relative max-h-[90vh] flex flex-col justify-between">
             <button
               onClick={() => setShowBatchModal(false)}
-              className="absolute top-4 right-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              className="absolute top-4 left-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
               aria-label="Back"
             >
               <ArrowLeft className="w-5 h-5" />
