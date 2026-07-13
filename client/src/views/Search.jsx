@@ -761,6 +761,14 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <h2 className="text-base font-bold text-slate-200">Filters</h2>
+              <button
+                onClick={onBack}
+                className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+                title="Close filters"
+                aria-label="Close filters"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-6">

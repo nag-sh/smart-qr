@@ -5,6 +5,17 @@ import { Camera } from '@capacitor/camera';
 import { Camera as CameraIcon, CameraOff, QrCode, AlertCircle, ArrowRight, Keyboard, RefreshCw, ArrowLeft } from 'lucide-react';
 import { getBin } from '../services/storage';
 
+function dataURLtoFile(dataUrl, filename) {
+  const arr = dataUrl.split(',');
+  const mime = arr[0].match(/:(.*?);/)[1];
+  const bstr = atob(arr[1]);
+  const u8arr = new Uint8Array(bstr.length);
+  for (let i = 0; i < bstr.length; i++) {
+    u8arr[i] = bstr.charCodeAt(i);
+  }
+  return new File([u8arr], filename, { type: mime });
+}
+
 export default function Scanner({ onNavigate, onBack }) {
   const [scanResult, setScanResult] = useState('');
   const [error, setError] = useState('');
@@ -13,18 +24,21 @@ export default function Scanner({ onNavigate, onBack }) {
   const [manualQr, setManualQr] = useState('');
   const [loading, setLoading] = useState(false);
   const html5QrCodeRef = useRef(null);
+  const isNative = Capacitor.isNativePlatform();
 
   // Initialize qr scanner instance
   useEffect(() => {
     html5QrCodeRef.current = new Html5Qrcode('scanner-viewport');
-    
-    // Automatically trigger scan on load
-    startScanner();
+
+    // Automatically trigger live scan on web only
+    if (!isNative) {
+      startScanner();
+    }
 
     return () => {
       stopScanner();
     };
-  }, []);
+  }, [isNative]);
 
   const startScanner = async () => {
     setError('');
@@ -34,22 +48,6 @@ export default function Scanner({ onNavigate, onBack }) {
         // If already scanning, stop first
         if (html5QrCodeRef.current.isScanning) {
           await html5QrCodeRef.current.stop();
-        }
-
-        if (Capacitor.isNativePlatform()) {
-          try {
-            const permissionResult = await Camera.requestPermissions();
-            if (permissionResult.camera === 'denied') {
-              setError('Camera permission is required to scan QR codes. Please enable it in app settings.');
-              setIsScanning(false);
-              return;
-            }
-          } catch (permissionErr) {
-            console.error('Camera permission request failed:', permissionErr);
-            setError('Could not request camera permission. Please allow camera access in app settings.');
-            setIsScanning(false);
-            return;
-          }
         }
 
         await html5QrCodeRef.current.start(
@@ -85,6 +83,44 @@ export default function Scanner({ onNavigate, onBack }) {
       }
     } catch (err) {
       console.error('Failed to stop scanning:', err);
+    }
+  };
+
+  const takePhotoAndScan = async () => {
+    setError('');
+    setScanResult('');
+    setLoading(true);
+    try {
+      const photo = await Camera.getPhoto({
+        quality: 90,
+        allowEditing: false,
+        resultType: 'DataUrl',
+        correctOrientation: true
+      });
+
+      const file = dataURLtoFile(photo.dataUrl, 'qr-scan.jpg');
+      const text = await html5QrCodeRef.current.scanFile(file, false);
+
+      if (!text) {
+        setError('No QR code found in that photo. Please try again.');
+        return;
+      }
+
+      await handleScanSuccess(text);
+    } catch (err) {
+      console.error('Native photo scan failed:', err);
+      const message = err?.message?.toLowerCase() || '';
+      if (message.includes('cancel') || message.includes('user did not select')) {
+        // User backed out; no error needed
+        return;
+      }
+      if (message.includes('denied') || message.includes('permission')) {
+        setError('Camera permission is required to scan QR codes. Please enable it in app settings.');
+        return;
+      }
+      setError('No QR code found in that photo. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -194,49 +230,77 @@ export default function Scanner({ onNavigate, onBack }) {
         ) : (
           /* Camera Viewport */
           <>
-            {/* HTML5 Qrcode library attaches canvas element here */}
-            <div id="scanner-viewport" className="w-full h-full object-cover"></div>
+            {isNative ? (
+              <>
+                {/* Hidden element for Html5Qrcode scanFile */}
+                <div id="scanner-viewport" className="opacity-0 absolute inset-0 pointer-events-none"></div>
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 space-y-4 bg-slate-900/80 z-20">
+                  <div className="p-4 bg-slate-800/80 rounded-full text-purple-400">
+                    <CameraIcon className="w-10 h-10" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-sm text-slate-200">Tap to Scan</h3>
+                    <p className="text-xs text-slate-400 max-w-xs mt-1">
+                      Take a photo of a QR code and we'll decode it for you.
+                    </p>
+                  </div>
+                  <button
+                    onClick={takePhotoAndScan}
+                    disabled={loading}
+                    className="px-6 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-medium text-sm flex items-center gap-2 transition-colors cursor-pointer"
+                  >
+                    {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CameraIcon className="w-4 h-4" />}
+                    {loading ? 'Scanning…' : 'Scan QR Code'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* HTML5 Qrcode library attaches canvas element here */}
+                <div id="scanner-viewport" className="w-full h-full object-cover"></div>
 
-            {/* Custom scanning HUD overlays */}
-            {isScanning && (
-              <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                {/* Blur masks around the target area */}
-                <div className="absolute inset-0 bg-slate-950/40"></div>
-                
-                {/* Square target box */}
-                <div className="w-[65%] aspect-square border-2 rounded-2xl animate-qr-pulse relative z-10">
-                  {/* Glowing corners */}
-                  <div className="absolute -top-[3px] -left-[3px] w-6 h-6 border-t-4 border-l-4 border-purple-500 rounded-tl-xl"></div>
-                  <div className="absolute -top-[3px] -right-[3px] w-6 h-6 border-t-4 border-r-4 border-purple-500 rounded-tr-xl"></div>
-                  <div className="absolute -bottom-[3px] -left-[3px] w-6 h-6 border-b-4 border-l-4 border-purple-500 rounded-bl-xl"></div>
-                  <div className="absolute -bottom-[3px] -right-[3px] w-6 h-6 border-b-4 border-r-4 border-purple-500 rounded-br-xl"></div>
-                  
-                  {/* Laser line anim */}
-                  <div className="absolute left-1 right-1 h-0.5 bg-gradient-to-r from-transparent via-pink-500 to-transparent shadow-lg shadow-pink-500/50 animate-scan-line"></div>
-                </div>
-              </div>
-            )}
+                {/* Custom scanning HUD overlays */}
+                {isScanning && (
+                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                    {/* Blur masks around the target area */}
+                    <div className="absolute inset-0 bg-slate-950/40"></div>
+                    
+                    {/* Square target box */}
+                    <div className="w-[65%] aspect-square border-2 rounded-2xl animate-qr-pulse relative z-10">
+                      {/* Glowing corners */}
+                      <div className="absolute -top-[3px] -left-[3px] w-6 h-6 border-t-4 border-l-4 border-purple-500 rounded-tl-xl"></div>
+                      <div className="absolute -top-[3px] -right-[3px] w-6 h-6 border-t-4 border-r-4 border-purple-500 rounded-tr-xl"></div>
+                      <div className="absolute -bottom-[3px] -left-[3px] w-6 h-6 border-b-4 border-l-4 border-purple-500 rounded-bl-xl"></div>
+                      <div className="absolute -bottom-[3px] -right-[3px] w-6 h-6 border-b-4 border-r-4 border-purple-500 rounded-br-xl"></div>
+                      
+                      {/* Laser line anim */}
+                      <div className="absolute left-1 right-1 h-0.5 bg-gradient-to-r from-transparent via-pink-500 to-transparent shadow-lg shadow-pink-500/50 animate-scan-line"></div>
+                    </div>
+                  </div>
+                )}
 
-            {/* Offline/Stopped state overlay */}
-            {!isScanning && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 space-y-4 bg-slate-900/80 z-20">
-                <div className="p-3.5 bg-slate-800/80 rounded-full text-slate-400">
-                  <CameraOff className="w-8 h-8" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-sm text-slate-200">Scanner Paused</h3>
-                  <p className="text-xs text-slate-400 max-w-xs mt-1">
-                    Camera access is inactive. Tap below to reactivate camera.
-                  </p>
-                </div>
-                <button
-                  onClick={startScanner}
-                  disabled={loading}
-                  className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-medium text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <CameraIcon className="w-3.5 h-3.5" /> Start Camera
-                </button>
-              </div>
+                {/* Offline/Stopped state overlay */}
+                {!isScanning && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 space-y-4 bg-slate-900/80 z-20">
+                    <div className="p-3.5 bg-slate-800/80 rounded-full text-slate-400">
+                      <CameraOff className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm text-slate-200">Scanner Paused</h3>
+                      <p className="text-xs text-slate-400 max-w-xs mt-1">
+                        Camera access is inactive. Tap below to reactivate camera.
+                      </p>
+                    </div>
+                    <button
+                      onClick={startScanner}
+                      disabled={loading}
+                      className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-medium text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <CameraIcon className="w-3.5 h-3.5" /> Start Camera
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}

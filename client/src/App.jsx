@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, useSearchParams, useNavigate } from 'react-router-dom';
 import { parseModalStack, stackToSearchString, dedupeStack } from './modalStack.js';
-import { QrCode, Settings as SettingsIcon, Printer, Info, ArrowLeft, Plus } from 'lucide-react';
+import { QrCode, Settings as SettingsIcon, Printer, Info, ArrowLeft, Plus, Search as SearchIcon } from 'lucide-react';
 
 // Import Views
 import Search from './views/Search';
@@ -180,6 +180,18 @@ function AppContent() {
       {/* Floating Bottom Navigation Bar (Hidden when printing label) */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-md z-40 no-print">
         <nav className="glass-panel px-4 py-3 rounded-2xl shadow-2xl flex items-center justify-around gap-2 border border-slate-800/80">
+
+          <button
+            onClick={() => onNavigate('search')}
+            className={`flex flex-col items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+              stack[stack.length - 1]?.type === 'search'
+                ? 'text-purple-400 bg-purple-500/10'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <SearchIcon className="w-5 h-5" />
+            <span className="text-[10px] font-semibold tracking-wider">Search</span>
+          </button>
 
           {/* Scanner Tab */}
           <button
