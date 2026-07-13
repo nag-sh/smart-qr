@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Key, Eye, EyeOff, Save, CheckCircle2, AlertTriangle, 
   ExternalLink, Database, FileJson, Download, Upload, Server, ShieldAlert,
-  RefreshCw, ArrowDownToLine, ArrowUpFromLine, X, History, ArrowRight
+  RefreshCw, ArrowDownToLine, ArrowUpFromLine, History, ArrowRight, ArrowLeft, Cloud
 } from 'lucide-react';
 import { 
   getStorageMode, setStorageMode as persistStorageMode, 
@@ -34,6 +34,16 @@ export default function Settings({ onNavigate }) {
   const [deleteUnreferenced, setDeleteUnreferenced] = useState(false);
   const [showDeleteWarning, setShowDeleteWarning] = useState(false);
   const [pendingSyncDirection, setPendingSyncDirection] = useState(null); // 'pull' | 'push'
+
+  // Cloud server configuration
+  const [cloudUrl, setCloudUrl] = useState('');
+  const [cloudStatus, setCloudStatus] = useState('disconnected');
+  const [showCloudConfig, setShowCloudConfig] = useState(false);
+  const [cloudInput, setCloudInput] = useState('https://smartqr.nag.sh/api');
+  const [connecting, setConnecting] = useState(false);
+  const [cloudToken, setCloudToken] = useState('');
+  const [cloudTokenInput, setCloudTokenInput] = useState('');
+  const [showCloudToken, setShowCloudToken] = useState(false);
 
   const clearSyncFeedback = () => {
     setSyncSuccess('');
@@ -116,12 +126,83 @@ export default function Settings({ onNavigate }) {
     setPendingSyncDirection(null);
   };
 
+  const testCloudConnection = useCallback(async (url, token) => {
+    setCloudStatus('connecting');
+    setConnecting(true);
+    try {
+      const headers = {};
+      if (token && token.trim()) {
+        headers.Authorization = `Bearer ${token.trim()}`;
+      }
+      const response = await fetch(`${url}/bins`, {
+        method: 'GET',
+        headers,
+        signal: AbortSignal.timeout(8000)
+      });
+      setCloudStatus(response.ok ? 'connected' : 'disconnected');
+    } catch (err) {
+      console.error('Cloud connection test failed:', err);
+      setCloudStatus('disconnected');
+    } finally {
+      setConnecting(false);
+    }
+  }, []);
+
+  const handleCloudClick = () => {
+    setCloudInput(cloudUrl || 'https://smartqr.nag.sh/api');
+    setCloudTokenInput(cloudToken || '');
+    setShowCloudConfig(true);
+  };
+
+  const handleCloudConnect = async () => {
+    const trimmed = cloudInput.trim();
+    if (!trimmed) return;
+
+    const token = cloudTokenInput.trim();
+    persistStorageMode('server');
+    setStorageModeState('server');
+    localStorage.setItem('cloud_server_url', trimmed);
+    if (token) {
+      localStorage.setItem('cloud_api_token', token);
+    } else {
+      localStorage.removeItem('cloud_api_token');
+    }
+    setCloudUrl(trimmed);
+    setCloudToken(token);
+    setShowCloudConfig(false);
+    await testCloudConnection(trimmed, token);
+  };
+
+  const handleCloudDisable = () => {
+    localStorage.removeItem('cloud_server_url');
+    localStorage.removeItem('cloud_api_token');
+    setCloudUrl('');
+    setCloudToken('');
+    setCloudTokenInput('');
+    setCloudStatus('disconnected');
+    setShowCloudConfig(false);
+  };
+
+  const handleCloudCancel = () => {
+    setShowCloudConfig(false);
+  };
+
   useEffect(() => {
     const stored = localStorage.getItem('gemini_api_key');
     if (stored) {
       setApiKey(stored);
     }
   }, []);
+
+  useEffect(() => {
+    const storedCloudUrl = localStorage.getItem('cloud_server_url');
+    if (storedCloudUrl) {
+      setCloudUrl(storedCloudUrl);
+      const storedCloudToken = localStorage.getItem('cloud_api_token') || '';
+      setCloudToken(storedCloudToken);
+      testCloudConnection(storedCloudUrl, storedCloudToken);
+    }
+  }, [testCloudConnection]);
 
   const handleSave = (e) => {
     e.preventDefault();
@@ -278,14 +359,25 @@ export default function Settings({ onNavigate }) {
         <div className="space-y-3 mb-6">
           <div className="grid grid-cols-2 gap-3 bg-slate-950/60 p-1.5 rounded-xl border border-slate-800/80">
             <button
-              onClick={() => handleStorageModeChange('server')}
-              className={`py-3 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                storageMode === 'server'
-                  ? 'bg-purple-600 text-white shadow-lg'
-                  : 'text-slate-400 hover:text-slate-200'
+              onClick={handleCloudClick}
+              className={`py-3 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                !cloudUrl
+                  ? 'opacity-50 text-slate-400'
+                  : storageMode === 'server'
+                    ? 'bg-purple-600 text-white shadow-lg'
+                    : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              Central Server
+              {cloudUrl && (
+                <span className={`w-2 h-2 rounded-full shrink-0 ${
+                  cloudStatus === 'connected'
+                    ? 'bg-emerald-500'
+                    : cloudStatus === 'connecting'
+                      ? 'bg-amber-500 animate-pulse'
+                      : 'bg-red-500'
+                }`} />
+              )}
+              Cloud
             </button>
             <button
               onClick={() => handleStorageModeChange('local')}
@@ -302,7 +394,7 @@ export default function Settings({ onNavigate }) {
           <div className="p-3.5 bg-slate-900/60 rounded-xl border border-slate-800 text-[11px] text-slate-400 leading-relaxed">
             {storageMode === 'server' ? (
               <span>
-                <strong>Central SQLite Server Mode:</strong> Synchronizes physical inventory to a central Node server on port 5005. Ideal for multiple devices sharing metadata and FTS5 indexes.
+                <strong>Cloud Mode:</strong> Synchronizes inventory to your Smart QR Cloud server.
               </span>
             ) : (
               <span>
@@ -683,9 +775,10 @@ export default function Settings({ onNavigate }) {
           <div className="glass-panel w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-red-500/20 space-y-5 relative">
             <button
               onClick={() => { setShowDeleteWarning(false); setPendingSyncDirection(null); }}
-              className="absolute top-4 right-4 p-1 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-900 cursor-pointer transition-all"
+              className="absolute top-4 right-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              aria-label="Back"
             >
-              <X className="w-4 h-4" />
+              <ArrowLeft className="w-5 h-5" />
             </button>
 
             <div className="text-center space-y-3">
@@ -720,6 +813,106 @@ export default function Settings({ onNavigate }) {
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CLOUD SERVER CONFIGURATION MODAL */}
+      {showCloudConfig && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm"
+          onClick={handleCloudCancel}
+        >
+          <div
+            className="glass-panel w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-slate-800/60 space-y-5 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={handleCloudCancel}
+              className="absolute top-4 right-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              aria-label="Back"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+
+            <div className="text-center space-y-3">
+              <div className="p-3 bg-purple-500/15 rounded-full w-fit mx-auto">
+                <Cloud className="w-8 h-8 text-purple-400" />
+              </div>
+              <h2 className="text-base font-bold text-purple-300">Cloud Server Configuration</h2>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Enter the address of your Smart QR Cloud server.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="cloudUrl" className="block text-xs font-semibold text-slate-300">
+                Server Address
+              </label>
+              <input
+                id="cloudUrl"
+                type="text"
+                value={cloudInput}
+                onChange={(e) => setCloudInput(e.target.value)}
+                placeholder="https://smartqr.nag.sh/api"
+                className="w-full px-4 py-3 rounded-xl glass-input text-sm text-slate-100 placeholder-slate-500 font-mono"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="cloudToken" className="block text-xs font-semibold text-slate-300">
+                API Token <span className="text-slate-500 font-normal">(optional)</span>
+              </label>
+              <div className="relative">
+                <input
+                  id="cloudToken"
+                  type={showCloudToken ? 'text' : 'password'}
+                  value={cloudTokenInput}
+                  onChange={(e) => setCloudTokenInput(e.target.value)}
+                  placeholder="Bearer token for cloud server"
+                  className="w-full px-4 py-3 pr-10 rounded-xl glass-input text-sm text-slate-100 placeholder-slate-500 font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCloudToken(!showCloudToken)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 focus:outline-none cursor-pointer"
+                >
+                  {showCloudToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-500 leading-normal">
+                Optional authentication token sent as a Bearer header during connection tests.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2 pt-1">
+              <button
+                onClick={handleCloudConnect}
+                disabled={connecting}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all disabled:opacity-50"
+              >
+                {connecting ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Cloud className="w-4 h-4" />
+                )}
+                Connect
+              </button>
+              <button
+                onClick={handleCloudCancel}
+                className="w-full py-2.5 rounded-xl border border-slate-700/60 hover:bg-slate-800 text-slate-300 font-semibold text-xs cursor-pointer transition-all"
+              >
+                Cancel
+              </button>
+              {cloudUrl && (
+                <button
+                  onClick={handleCloudDisable}
+                  className="w-full py-2.5 rounded-xl border border-red-700/50 hover:bg-red-950/40 text-red-300 font-semibold text-xs cursor-pointer transition-all"
+                >
+                  Disable Cloud
+                </button>
+              )}
             </div>
           </div>
         </div>

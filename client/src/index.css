@@ -119,6 +119,13 @@
   background: rgba(168, 85, 247, 0.5);
 }
 
+#scanner-viewport video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+  display: block;
+}
+
 /* Print styles for 8.5x11 Landscape Labels */
 @media print {
   @page {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  History, RotateCcw, Clock, Plus, X, RefreshCw, CheckCircle2, AlertTriangle,
+  History, RotateCcw, Clock, Plus, RefreshCw, CheckCircle2, AlertTriangle,
   Box, Package, ArrowLeft
 } from 'lucide-react';
 import {
@@ -355,10 +355,11 @@ export default function RestorePoints({ onNavigate }) {
           <div className={`glass-panel w-full ${cherryPickMode ? 'max-w-2xl' : 'max-w-sm'} rounded-3xl p-6 shadow-2xl border border-purple-500/20 space-y-5 relative max-h-[90vh] flex flex-col justify-between`}>
             <button
               onClick={() => { if (!restoring) { setRestoreTarget(null); setCherryPickMode(false); } }}
-              className="absolute top-4 right-4 p-1.5 rounded text-slate-500 hover:text-slate-300 cursor-pointer"
+              className="absolute top-4 right-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              aria-label="Back"
               disabled={restoring}
             >
-              <X className="w-5 h-5" />
+              <ArrowLeft className="w-5 h-5" />
             </button>
 
             {cherryPickMode ? (
@@ -526,10 +527,11 @@ export default function RestorePoints({ onNavigate }) {
           <div className="glass-panel w-full max-w-md rounded-3xl p-6 shadow-2xl border border-purple-500/20 space-y-5 relative max-h-[90vh] flex flex-col justify-between">
             <button
               onClick={() => { if (!restoring) setShowMultiRestoreModal(false); }}
-              className="absolute top-4 right-4 p-1.5 rounded text-slate-500 hover:text-slate-300 cursor-pointer"
+              className="absolute top-4 right-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              aria-label="Back"
               disabled={restoring}
             >
-              <X className="w-5 h-5" />
+              <ArrowLeft className="w-5 h-5" />
             </button>
 
             <div className="text-center space-y-3 shrink-0">
@@ -618,9 +620,10 @@ export default function RestorePoints({ onNavigate }) {
               </div>
               <button
                 onClick={() => setSelectedAuditEntry(null)}
-                className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+                aria-label="Back"
               >
-                <X className="w-4 h-4" />
+                <ArrowLeft className="w-5 h-5" />
               </button>
             </div>
 

@@ -10,6 +10,7 @@ function EntityList({
   selectedIds = new Set(),
   onSelectToggle,
   onEntryClick,
+  onLongPress,
   onLoadMore,
   hasMore = false,
   loading = false,
@@ -17,6 +18,12 @@ function EntityList({
   typeLabels = { bin: 'Bin', item: 'Item' },
 }) {
   const observerTargetRef = useRef(null);
+  const longPressTimer = useRef(null);
+  const longPressStart = useRef(null);
+  const suppressClick = useRef(false);
+
+  const LONG_PRESS_DURATION = 500;
+  const LONG_PRESS_MOVE_THRESHOLD = 10;
 
   const sortedEntities = useMemo(() => {
     if (layoutMode !== 'gallery') return entities;
@@ -49,6 +56,50 @@ function EntityList({
     };
   }, [hasMore, loading, onLoadMore, sortedEntities.length]);
 
+  useEffect(() => {
+    return () => {
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+      }
+    };
+  }, []);
+
+  const startLongPress = (entry) => (e) => {
+    if (e.button !== 0) return;
+    const target = e.currentTarget;
+    longPressStart.current = { x: e.clientX, y: e.clientY, target };
+    target.style.touchAction = 'none';
+    target.style.userSelect = 'none';
+    if (target.setPointerCapture) target.setPointerCapture(e.pointerId);
+    longPressTimer.current = setTimeout(() => {
+      longPressTimer.current = null;
+      suppressClick.current = true;
+      if (onLongPress) onLongPress(entry);
+    }, LONG_PRESS_DURATION);
+  };
+
+  const cancelLongPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    if (longPressStart.current && longPressStart.current.target) {
+      longPressStart.current.target.style.touchAction = '';
+      longPressStart.current.target.style.userSelect = '';
+    }
+    longPressStart.current = null;
+  };
+
+  const moveLongPress = (e) => {
+    if (!longPressTimer.current || !longPressStart.current) return;
+    const dx = e.clientX - longPressStart.current.x;
+    const dy = e.clientY - longPressStart.current.y;
+    if (Math.hypot(dx, dy) > LONG_PRESS_MOVE_THRESHOLD) {
+      cancelLongPress();
+    }
+  };
+
   const handleCheckboxChange = (entry) => (e) => {
     e.stopPropagation();
     if (onSelectToggle) {
@@ -76,6 +127,10 @@ function EntityList({
   };
 
   const handleEntryClick = (entry) => () => {
+    if (suppressClick.current) {
+      suppressClick.current = false;
+      return;
+    }
     if (manageMode) {
       if (onSelectToggle) {
         onSelectToggle(entry, !selectedIds.has(entry.id));
@@ -102,6 +157,11 @@ function EntityList({
         <div
           key={entry.id}
           onClick={handleEntryClick(entry)}
+          onPointerDown={startLongPress(entry)}
+          onPointerUp={cancelLongPress}
+          onPointerLeave={cancelLongPress}
+          onPointerCancel={cancelLongPress}
+          onPointerMove={moveLongPress}
           className="glass-card rounded-2xl overflow-hidden flex flex-col justify-between h-full cursor-pointer hover:shadow-xl hover:border-slate-700/50 transition-all animate-fade-in relative"
         >
           {manageMode && (
@@ -202,6 +262,11 @@ function EntityList({
         <div
           key={entry.id}
           onClick={handleEntryClick(entry)}
+          onPointerDown={startLongPress(entry)}
+          onPointerUp={cancelLongPress}
+          onPointerLeave={cancelLongPress}
+          onPointerCancel={cancelLongPress}
+          onPointerMove={moveLongPress}
           className="glass-card rounded-2xl p-3 flex items-center justify-between gap-4 hover:bg-slate-900/65 cursor-pointer transition-all border border-slate-800/40 hover:border-slate-750 animate-fade-in"
         >
           <div className="flex items-center gap-3 min-w-0">
@@ -280,6 +345,11 @@ function EntityList({
         <div
           key={entry.id}
           onClick={handleEntryClick(entry)}
+          onPointerDown={startLongPress(entry)}
+          onPointerUp={cancelLongPress}
+          onPointerLeave={cancelLongPress}
+          onPointerCancel={cancelLongPress}
+          onPointerMove={moveLongPress}
           className="aspect-square bg-slate-900 border border-slate-800/80 rounded-2xl overflow-hidden relative group cursor-pointer hover:border-purple-500/40 transition-colors animate-fade-in"
         >
           {manageMode && (

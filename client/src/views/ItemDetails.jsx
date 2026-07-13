@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  ArrowLeft, Package, MapPin, Tag, RefreshCw, Eye, Edit, Trash2, X, Save, Plus, MoreHorizontal
+  ArrowLeft, Package, MapPin, Tag, RefreshCw, Eye, Edit, Trash2, Save, Plus, MoreHorizontal
 } from 'lucide-react';
 import { searchItems, getBin, getBins, updateItem, deleteItem, batchManageItems } from '../services/storage';
 import imageCompression from 'browser-image-compression';
@@ -284,10 +284,10 @@ export default function ItemDetails({ onNavigate, itemId }) {
               <button
                 onClick={() => setEditing(false)}
                 disabled={saving}
-                className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer border border-slate-700/50"
-                title="Cancel"
+                className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+                aria-label="Back"
               >
-                <X className="w-4 h-4" />
+                <ArrowLeft className="w-5 h-5" />
               </button>
             </div>
 

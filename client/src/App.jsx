@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter } from 'react-router-dom';
-import { QrCode, Settings as SettingsIcon, Printer, Info, X } from 'lucide-react';
+import { QrCode, Settings as SettingsIcon, Printer, Info, ArrowLeft, Plus } from 'lucide-react';
 
 // Import Views
 import Search from './views/Search';
@@ -23,10 +23,10 @@ function ModalShell({ onClose, children }) {
         <div className="glass-panel-modal w-full max-h-[90vh] overflow-y-auto rounded-3xl relative animate-in fade-in zoom-in-95 duration-200">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-1 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-900 transition-all cursor-pointer z-10"
-            aria-label="Close"
+            className="absolute top-4 right-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+            aria-label="Back to Search"
           >
-            <X className="w-4 h-4" />
+            <ArrowLeft className="w-5 h-5" />
           </button>
           {children}
         </div>
@@ -44,6 +44,9 @@ function AppContent() {
 
   // Modal state: single-slot overlay above the persistent Search base
   const [activeModal, setActiveModal] = useState(null); // { type, params } | null
+
+  // Quick Add modal trigger state (lifted from Search so it can be opened from bottom nav)
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
 
   // Auto-close print helper popup after 5 seconds to stay out of the user's way
   useEffect(() => {
@@ -126,7 +129,7 @@ function AppContent() {
     <div className="min-h-screen bg-slate-950 pb-28 text-slate-100 flex flex-col justify-between">
       {/* Main Content Area — Search is always the base view */}
       <main className="flex-1 w-full max-w-4xl mx-auto px-2">
-        <Search onNavigate={onNavigate} />
+        <Search onNavigate={onNavigate} showQuickAdd={showQuickAdd} setShowQuickAdd={setShowQuickAdd} />
       </main>
 
       {/* Glassy modal overlay for all non-search views */}
@@ -149,17 +152,13 @@ function AppContent() {
             <span className="text-[10px] font-semibold tracking-wider">Scan</span>
           </button>
 
-          {/* Settings Tab */}
+          {/* Quick Add Tab */}
           <button
-            onClick={() => onNavigate('settings')}
-            className={`flex flex-col items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
-              activeModal?.type === 'settings' || activeModal?.type === 'restore-points'
-                ? 'text-purple-400 bg-purple-500/10'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
+            onClick={() => setShowQuickAdd(true)}
+            className="flex flex-col items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer text-slate-400 hover:text-slate-200"
           >
-            <SettingsIcon className="w-5 h-5" />
-            <span className="text-[10px] font-semibold tracking-wider">Settings</span>
+            <Plus className="w-5 h-5" />
+            <span className="text-[10px] font-semibold tracking-wider">Add</span>
           </button>
 
         </nav>
@@ -174,9 +173,10 @@ function AppContent() {
                 setShowPrintHelper(false);
                 setPrintData(null);
               }}
-              className="absolute top-4 right-4 p-1 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-900 transition-all cursor-pointer"
+              className="absolute top-4 right-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              aria-label="Back to Search"
             >
-              <X className="w-4 h-4" />
+              <ArrowLeft className="w-5 h-5" />
             </button>
 
             <div className="p-3 bg-purple-500/10 rounded-full text-purple-400 w-fit mx-auto">
