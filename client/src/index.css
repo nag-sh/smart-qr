@@ -25,6 +25,14 @@
   -webkit-backdrop-filter: blur(24px);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  overflow-x: hidden;
+}
+
+.glass-panel-modal,
+.glass-panel-modal * {
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
 }
 
 .glass-card {
