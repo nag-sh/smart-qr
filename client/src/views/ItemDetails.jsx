@@ -286,7 +286,7 @@ export default function ItemDetails({ onNavigate, itemId, onBack, modalTypes, re
       {/* Edit modal */}
       {modalTypes?.includes('edit-item') && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm pointer-events-auto"
           onClick={(e) => { if (e.target === e.currentTarget) onBack(); }}
         >
           <div className="glass-panel w-full max-w-2xl rounded-3xl p-6 shadow-2xl border border-slate-800 relative max-h-[90vh] overflow-y-auto">

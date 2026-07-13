@@ -786,7 +786,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
 
       {/* DELETE-UNREFERENCED DANGER MODAL */}
       {modalTypes?.includes('settings-warning') && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm pointer-events-auto">
           <div className="glass-panel w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-red-500/20 space-y-5 relative">
             <button
               onClick={() => { onBack(); setPendingSyncDirection(null); }}
@@ -836,7 +836,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
       {/* CLOUD SERVER CONFIGURATION MODAL */}
       {modalTypes?.includes('settings-cloud') && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm pointer-events-auto"
           onClick={handleCloudCancel}
         >
           <div
