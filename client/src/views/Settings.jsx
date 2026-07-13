@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Key, Eye, EyeOff, Save, CheckCircle2, AlertTriangle, 
   ExternalLink, FileJson, Download, Upload, Server,
@@ -13,6 +13,7 @@ import {
 import {
   slugify, planImagePath, getImageBlob, storeImage, isImageRef, EXT_FROM_TYPE, dataURLToBlob
 } from '../services/localImages';
+import { saveBackup, pickBackup } from '../services/nativeFiles';
 import JSZip from 'jszip';
 
 export default function Settings({ onNavigate, onBack, modalTypes }) {
@@ -36,8 +37,6 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
   const [importSuccess, setImportSuccess] = useState('');
   const [importError, setImportError] = useState('');
   const [includeImages, setIncludeImages] = useState(true);
-
-  const importFileInputRef = useRef(null);
 
 
 
@@ -306,14 +305,8 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
       }, null, 2));
 
       const zipBlob = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(zipBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `smart_inventory_backup_${new Date().toISOString().slice(0, 10)}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      const filename = `smart_inventory_backup_${new Date().toISOString().slice(0, 10)}.zip`;
+      await saveBackup(zipBlob, filename);
     } catch (err) {
       console.error(err);
       alert('Failed to generate local export file.');
@@ -321,8 +314,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
   };
 
   // Import file processing flow
-  const handleImportFile = async (e) => {
-    const file = e.target.files[0];
+  const handleImportFile = async (file, fileBuffer) => {
     if (!file) return;
 
     setImporting(true);
@@ -334,7 +326,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
 
       if (fileName.endsWith('.zip')) {
         if (storageMode === 'local') {
-          const arrayBuffer = await file.arrayBuffer();
+          const arrayBuffer = fileBuffer ?? await file.arrayBuffer();
           const zip = await JSZip.loadAsync(arrayBuffer);
           const inventoryFile = zip.file('inventory.json');
           if (!inventoryFile) {
@@ -462,13 +454,24 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
       setImportError(err.message || 'Data restoration failed.');
     } finally {
       setImporting(false);
-      e.target.value = ''; // Reset file input
     }
   };
 
-  const triggerImportFilePicker = () => {
-    if (importFileInputRef.current) {
-      importFileInputRef.current.click();
+  const triggerImportFilePicker = async () => {
+    setImporting(true);
+    setImportError('');
+    setImportSuccess('');
+    try {
+      const result = await pickBackup();
+      if (!result) {
+        setImporting(false);
+        return;
+      }
+      await handleImportFile(result.file, result.arrayBuffer);
+    } catch (err) {
+      console.error(err);
+      setImportError(err.message || 'Failed to pick backup file.');
+      setImporting(false);
     }
   };
 
@@ -823,14 +826,6 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
           <div className="space-y-3 pt-3 border-t border-slate-800/50">
             <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Import Backups</span>
             
-            <input 
-              type="file" 
-              accept=".db,.json,.zip" 
-              ref={importFileInputRef}
-              onChange={handleImportFile}
-              className="hidden"
-            />
-
             <button
               onClick={triggerImportFilePicker}
               disabled={importing}
