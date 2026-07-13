@@ -128,10 +128,8 @@ function AppContent() {
     }
   };
 
-  const filtersOpen = modalTypes.includes('filters');
-  const onSearchScreen = stack.length === 0;
   const rootRef = useRef(null);
-  useEdgeGestures(rootRef, { onBack, onOpenFilters: () => onNavigate('filters'), filtersOpen, onSearchScreen });
+  useEdgeGestures(rootRef, { onBack });
 
   // central printing trigger
   const handlePrintBin = (qrId, binName) => {

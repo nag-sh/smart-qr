@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 const EDGE = 28;
 const MIN_SWIPE = 60;
 
-export function useEdgeGestures(rootRef, { onBack, onOpenFilters, filtersOpen, onSearchScreen }) {
+export function useEdgeGestures(rootRef, { onBack }) {
   const startRef = useRef(null);
 
   useEffect(() => {
@@ -27,19 +27,9 @@ export function useEdgeGestures(rootRef, { onBack, onOpenFilters, filtersOpen, o
 
       if (!isHorizontalSwipe(dx, dy)) return;
 
-      const screenWidth = window.innerWidth;
-      const fromLeftEdge = start.x <= EDGE;
-      const fromRightEdge = start.x >= screenWidth - EDGE;
-
-      if (filtersOpen && dx > 0) {
+      if (start.x <= EDGE && dx > 0) {
         e.preventDefault();
         onBack();
-      } else if (fromLeftEdge && dx > 0) {
-        e.preventDefault();
-        onBack();
-      } else if (fromRightEdge && dx < 0 && onSearchScreen && !filtersOpen) {
-        e.preventDefault();
-        onOpenFilters();
       }
     };
 
@@ -50,5 +40,5 @@ export function useEdgeGestures(rootRef, { onBack, onOpenFilters, filtersOpen, o
       root.removeEventListener('touchstart', handleTouchStart, { passive: true });
       root.removeEventListener('touchend', handleTouchEnd, { passive: false });
     };
-  }, [rootRef, onBack, onOpenFilters, filtersOpen, onSearchScreen]);
+  }, [rootRef, onBack]);
 }
