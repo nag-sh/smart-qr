@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, RefreshCw, Sparkles, Tag, Type, FileText, Plus, X, Save, ArrowLeft, AlertCircle, SwitchCamera } from 'lucide-react';
-import imageCompression from 'browser-image-compression';
+import { Camera, RefreshCw, Sparkles, Tag, Type, FileText, Plus, X, Save, SwitchCamera } from 'lucide-react';
+import BackButton from '../components/BackButton';
+import MessageBanner from '../components/MessageBanner';
+import { compressImage } from '../utils/imageCompression';
 import { analyzeItemImage } from '../services/gemini';
 import { createItem, getBins } from '../services/storage';
 import { useCameraDevices } from '../hooks/useCameraDevices';
@@ -230,13 +232,7 @@ export default function AddItem({ binId, onNavigate, onBack }) {
 
     try {
       // 1. Compress Image
-      const options = {
-        maxSizeMB: 0.2, // Compress to ~200kb
-        maxWidthOrHeight: 1024,
-        useWebWorker: true
-      };
-      
-      const compressed = await imageCompression(file, options);
+      const compressed = await compressImage(file, { maxSizeMB: 0.2 });
       setImageFile(compressed);
       
       if (imagePreview) {
@@ -333,13 +329,11 @@ export default function AddItem({ binId, onNavigate, onBack }) {
       <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-600/10 rounded-full blur-3xl pointer-events-none"></div>
 
       <div className="p-5 flex items-center gap-3 border-b border-slate-800/50">
-        <button
+        <BackButton
           onClick={() => onBack()}
-          className="p-2 -ml-1 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+          className="-ml-1"
           disabled={loading || aiAnalyzing}
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
+        />
         <div className="flex items-center gap-2.5">
           <div className="p-2.5 bg-purple-500/10 rounded-xl text-purple-400">
             <Sparkles className="w-5 h-5" />
@@ -353,19 +347,23 @@ export default function AddItem({ binId, onNavigate, onBack }) {
 
       {/* Missing API Key Warning */}
       {!apiKey && (
-        <div className="p-4 bg-amber-500/10 border-b border-amber-500/20 flex gap-2.5 text-xs text-amber-300">
-          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
-          <div>
-            <strong className="font-semibold">No Gemini API Key set:</strong> AI auto-labeling is disabled. Go to{' '}
-            <button
-              onClick={() => onNavigate('settings')}
-              className="underline hover:text-amber-200 font-bold"
-            >
-              Settings
-            </button>{' '}
-            to set up your key, or enter item details manually below.
-          </div>
-        </div>
+        <MessageBanner
+          type="warning"
+          className="p-4 bg-amber-500/10 border-b border-amber-500/20 flex gap-2.5 text-xs text-amber-300"
+          iconClassName="w-4 h-4 shrink-0 mt-0.5 text-amber-400"
+          message={
+            <div>
+              <strong className="font-semibold">No Gemini API Key set:</strong> AI auto-labeling is disabled. Go to{' '}
+              <button
+                onClick={() => onNavigate('settings')}
+                className="underline hover:text-amber-200 font-bold"
+              >
+                Settings
+              </button>{' '}
+              to set up your key, or enter item details manually below.
+            </div>
+          }
+        />
       )}
 
       {/* AI Loading Screen Overlay */}
@@ -670,16 +668,21 @@ export default function AddItem({ binId, onNavigate, onBack }) {
         </div>
 
         {error && (
-          <div className="p-3.5 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2 text-xs text-red-300">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 animate-pulse" />
-            <span>{error}</span>
-          </div>
+          <MessageBanner
+            type="error"
+            message={error}
+            className="p-3.5 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2 text-xs text-red-300"
+            iconClassName="w-4 h-4 shrink-0 mt-0.5 animate-pulse"
+          />
         )}
 
         {successMsg && (
-          <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center text-xs text-emerald-300">
-            {successMsg}
-          </div>
+          <MessageBanner
+            type="success"
+            message={successMsg}
+            className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center text-xs text-emerald-300"
+            iconClassName="hidden"
+          />
         )}
 
         <button

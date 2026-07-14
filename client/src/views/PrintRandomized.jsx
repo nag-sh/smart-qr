@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Printer, QrCode } from 'lucide-react';
+import { Printer, QrCode } from 'lucide-react';
+import BackButton from '../components/BackButton';
 
 const LABEL_PRESETS = [
   {
@@ -76,13 +77,11 @@ export default function PrintRandomized({ onBack, onPrintRandom }) {
       <div className="absolute -top-24 -right-24 w-48 h-48 bg-cyan-600/10 rounded-full blur-3xl pointer-events-none"></div>
 
       <div className="flex items-center gap-3">
-        <button
+        <BackButton
           onClick={onBack}
-          className="p-2 -ml-1 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+          className="-ml-1"
           aria-label="Back"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
+        />
         <div className="flex items-center gap-2.5">
           <div className="p-2.5 bg-cyan-500/10 rounded-xl text-cyan-400">
             <QrCode className="w-5 h-5" />

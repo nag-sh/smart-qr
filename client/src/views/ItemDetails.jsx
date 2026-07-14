@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  ArrowLeft, Package, MapPin, Tag, RefreshCw, Eye, Edit, Trash2, MoreHorizontal, Sparkles, AlertCircle
+  Package, MapPin, Tag, RefreshCw, Eye, Edit, Trash2, MoreHorizontal, Sparkles
 } from 'lucide-react';
 import { searchItems, getBin, deleteItem, updateItem } from '../services/storage';
 import useImageSrc from '../hooks/useImageSrc';
 import { analyzeItemImage } from '../services/gemini';
 import { getImageBlob, isImageRef } from '../services/localImages';
+import BackButton from '../components/BackButton';
+import MessageBanner from '../components/MessageBanner';
 
 export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }) {
   const [item, setItem] = useState(null);
@@ -197,12 +199,7 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
   if (error || !item) {
     return (
     <div className="w-full max-w-4xl min-w-[min(80vw,56rem)] mx-auto py-6 px-4 space-y-6">
-        <button
-          onClick={() => onBack()}
-          className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
+        <BackButton onClick={() => onBack()} />
 
         <div className="glass-panel rounded-3xl p-8 text-center shadow-2xl border border-slate-800/80">
           <p className="text-slate-300 font-medium">{error || 'Item not found'}</p>
@@ -221,12 +218,7 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
     <div className="w-full max-w-4xl min-w-[min(80vw,56rem)] mx-auto py-6 px-4 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <button
-          onClick={() => onBack()}
-          className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
+        <BackButton onClick={() => onBack()} />
 
         <div className="relative" ref={overflowMenuRef}>
           <button
@@ -384,10 +376,12 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
             )}
 
             {!aiLoading && aiError && (
-              <div className="p-3.5 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2 text-xs text-red-300">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>{aiError}</span>
-              </div>
+              <MessageBanner
+                type="error"
+                message={aiError}
+                className="p-3.5 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2 text-xs text-red-300"
+                iconClassName="w-4 h-4 shrink-0 mt-0.5"
+              />
             )}
 
             {!aiLoading && aiProposed && (
@@ -486,13 +480,10 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
           onClick={() => setShowFullImage(false)}
         >
           <div className="pt-[max(env(safe-area-inset-top),2rem)] px-4">
-            <button
+            <BackButton
               onClick={() => setShowFullImage(false)}
-              className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
               aria-label="Back"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
+            />
           </div>
           <div className="flex-1 flex items-center justify-center p-6">
             <img

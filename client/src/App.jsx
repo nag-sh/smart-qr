@@ -4,7 +4,9 @@ import { parseModalStack, stackToSearchString, dedupeStack } from './modalStack.
 import { Capacitor } from '@capacitor/core';
 import { useEdgeGestures } from './hooks/useEdgeGestures.js';
 import { Print } from './plugins/print.js';
-import { QrCode, Settings as SettingsIcon, Printer, Info, ArrowLeft, Plus, Search as SearchIcon, AlertTriangle } from 'lucide-react';
+import { QrCode, Settings as SettingsIcon, Printer, Info, Plus, Search as SearchIcon } from 'lucide-react';
+import BackButton from './components/BackButton';
+import MessageBanner from './components/MessageBanner';
 
 // Import Views
 import Search from './views/Search';
@@ -29,13 +31,11 @@ function ModalShell({ onClose, hideClose = false, children }) {
       <div className="w-full sm:w-[96%] sm:max-w-4xl" onClick={(e) => e.stopPropagation()}>
         <div className="glass-panel-modal w-full max-h-[90vh] overflow-y-auto overflow-x-hidden rounded-3xl relative animate-in fade-in zoom-in-95 duration-200">
           {!hideClose && (
-            <button
+            <BackButton
               onClick={onClose}
-              className="absolute top-4 left-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              className="absolute top-4 left-4"
               aria-label="Back to Search"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
+            />
           )}
           {children}
         </div>
@@ -336,17 +336,15 @@ function AppContent() {
       {showPrintHelper && printData && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm no-print">
           <div className="glass-panel w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-slate-800 relative text-center space-y-5 animate-in fade-in zoom-in-95 duration-200">
-            <button
+            <BackButton
               onClick={() => {
                 setShowPrintHelper(false);
                 setPrintData(null);
                 setPrintError('');
               }}
-              className="absolute top-4 left-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              className="absolute top-4 left-4"
               aria-label="Back to Search"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
+            />
 
             <div className="p-3 bg-purple-500/10 rounded-full text-purple-400 w-fit mx-auto">
               <Printer className="w-7 h-7" />
@@ -360,10 +358,12 @@ function AppContent() {
             </div>
 
             {printError && (
-              <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-2.5 text-xs text-red-300">
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>{printError}</span>
-              </div>
+              <MessageBanner
+                type="error"
+                message={printError}
+                className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-2.5 text-xs text-red-300"
+                iconClassName="w-4 h-4 shrink-0 mt-0.5"
+              />
             )}
 
             {/* Android Settings printer deep-link fallback */}
