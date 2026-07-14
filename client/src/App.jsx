@@ -46,6 +46,16 @@ function ModalShell({ onClose, hideClose = false, children }) {
 
 // ─── Inner App Content (must be inside BrowserRouter) ───────────────────────
 function AppContent() {
+  // Modal stack: derived from the URL (?modal=...&...) so it is linkable/layered.
+  // Declared FIRST because the scroll-lock effect below reads `stack` in its
+  // dependency array — referencing it before this `const` hits the temporal
+  // dead zone and crashes at render time (ReferenceError: Cannot access
+  // 'stack' before initialization).
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const stack = dedupeStack(parseModalStack(searchParams));
+  const modalTypes = stack.map(l => l.type);
+
   // ─── Prevent body scroll when modal is open ──────────────────────────
   useEffect(() => {
     if (stack.length > 0) {
@@ -62,12 +72,6 @@ function AppContent() {
   const [printCountdown, setPrintCountdown] = useState(5);
   const [printError, setPrintError] = useState('');
   const [randomPrintData, setRandomPrintData] = useState(null); // { codes: string[], perPage: number }
-
-  // Modal stack: derived from the URL (?modal=...&...) so it is linkable/layered
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const stack = dedupeStack(parseModalStack(searchParams));
-  const modalTypes = stack.map(l => l.type);
 
   const [refreshNonce, setRefreshNonce] = useState(0);
   const bumpRefresh = () => setRefreshNonce((n) => n + 1);
