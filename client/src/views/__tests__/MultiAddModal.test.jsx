@@ -37,6 +37,12 @@ const mockCreateItem = vi.hoisted(() =>
 
 const mockDeleteItem = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const mockBatchDelete = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const mockGetBins = vi.hoisted(() =>
+  vi.fn().mockResolvedValue([
+    { id: 'bin-A', name: 'Tools', location: 'Garage' },
+    { id: 'bin-B', name: 'Kitchen', location: 'Pantry' },
+  ]),
+);
 
 vi.mock('../../components/InlineCamera', () => ({
   default: function InlineCamera({ onCapture }) {
@@ -70,6 +76,7 @@ vi.mock('../../services/storage', () => ({
   createItem: mockCreateItem,
   deleteItem: mockDeleteItem,
   batchDeleteItems: mockBatchDelete,
+  getBins: mockGetBins,
 }));
 
 // ─── Globals / Stubs ───────────────────────────────────────────────────────
@@ -111,6 +118,10 @@ beforeEach(() => {
   mockCreateItem.mockResolvedValue({ id: 'item-1', name: 'Test' });
   mockDeleteItem.mockResolvedValue(undefined);
   mockBatchDelete.mockResolvedValue(undefined);
+  mockGetBins.mockResolvedValue([
+    { id: 'bin-A', name: 'Tools', location: 'Garage' },
+    { id: 'bin-B', name: 'Kitchen', location: 'Pantry' },
+  ]);
 
   uuidCounter = 0;
   urlCounter = 0;
@@ -314,5 +325,22 @@ describe('MultiAddModal', () => {
     });
 
     expect(batchDeleteItems).toHaveBeenCalledWith(['item-1', 'item-2']);
+  });
+
+  it('shows a bin picker when opened without a binId and proceeds after selection', async () => {
+    render(
+      <MultiAddModal
+        onNavigate={vi.fn()}
+        onBack={vi.fn()}
+        refreshNonce={0}
+      />,
+    );
+
+    expect(screen.getByText(/Choose a bin/i)).toBeInTheDocument();
+
+    const select = await screen.findByRole('combobox');
+    fireEvent.change(select, { target: { value: 'bin-A' } });
+
+    await waitFor(() => expect(screen.getByTestId('capture')).toBeInTheDocument());
   });
 });
