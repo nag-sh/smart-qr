@@ -302,6 +302,7 @@ export default function MultiAddModal({ binId, onNavigate, onBack, refreshNonce 
       <div className="relative h-[45vh] min-h-[280px] max-h-[480px] bg-slate-900 overflow-hidden shrink-0 m-4 rounded-2xl border border-slate-800/60">
         <InlineCamera
           useInlineCamera
+          showCapturedFrame={false}
           onCapture={handleCapture}
           onTriggerFilePicker={() => fileInputRef.current?.click()}
           captureFileName="multi-add-capture.jpg"
