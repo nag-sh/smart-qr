@@ -286,7 +286,6 @@ export async function createBin(qrId, name, location, imageFile) {
     if (imageFile) {
       const processed = await embedLocalImageMetadata(imageFile, {
         app: 'smart-inventory',
-        owner: 'dion',
         entity_type: 'bin',
         entity_id: id,
         entity_name: (name || '').trim(),
@@ -350,7 +349,6 @@ export async function createItem(binId, name, description, searchTagsArray, visi
     if (imageFile) {
       const processed = await embedLocalImageMetadata(imageFile, {
         app: 'smart-inventory',
-        owner: 'dion',
         entity_type: 'item',
         entity_id: id,
         entity_name: (name || '').trim(),
@@ -453,7 +451,6 @@ export async function getLocalExportData() {
   const items = await getLocalTable('local_items');
   return {
     exported_at: new Date().toISOString(),
-    owner: 'dion',
     bins,
     items
   };
@@ -532,7 +529,6 @@ export async function updateBin(id, fields, imageFile = null) {
       // Convert new image and embed metadata
       const processed = await embedLocalImageMetadata(imageFile, {
         app: 'smart-inventory',
-        owner: 'dion',
         entity_type: 'bin',
         entity_id: id,
         entity_name: (fields.name || bins[idx].name).trim(),
@@ -669,7 +665,6 @@ export async function updateItem(id, fields, imageFile = null) {
       // Convert new image and embed metadata
       const processed = await embedLocalImageMetadata(imageFile, {
         app: 'smart-inventory',
-        owner: 'dion',
         entity_type: 'item',
         entity_id: id,
         entity_name: (fields.name || items[idx].name).trim(),

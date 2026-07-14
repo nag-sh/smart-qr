@@ -113,7 +113,6 @@ test('backup zip round-trip preserves images as files under images/', async () =
       assert(fs.existsSync(inventoryPath), 'inventory.json should exist in the zip');
       const data = JSON.parse(fs.readFileSync(inventoryPath, 'utf8'));
 
-      assert.equal(data.owner, 'dion');
       assert.equal(data.image_layout, 'images/<location>/<bin>/<item>.*');
       assert.equal(data.bins.length, 1);
       assert.equal(data.items.length, 1);

@@ -232,8 +232,8 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
       if (generateMode) {
         // Generate a cryptographically secure random UUID for the bin ID
         const binUuid = crypto.randomUUID();
-        // Seed unique text including app, owner, ID, and Name slug to ensure uniqueness
-        generatedText = `APP: Smart QR Inventory | OWNER: dion | ID: ${binUuid} | NAME: ${name.trim()}`;
+        // Seed unique text including app, ID, and Name slug to ensure uniqueness
+        generatedText = `APP: Smart QR Inventory | ID: ${binUuid} | NAME: ${name.trim()}`;
         finalQrId = generatedText;
       }
 
@@ -316,7 +316,7 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
                 Generate digital QR label
               </h3>
               <p className="text-xs text-slate-400 leading-normal">
-                Auto-generate a unique label coded with metadata (owner name, UUID, and bin title). View and save/print it on success.
+                Auto-generate a unique label coded with metadata (UUID and bin title). View and save/print it on success.
               </p>
             </div>
           </button>
