@@ -36,6 +36,7 @@ export default function MultiAddModal({ binId, onNavigate, onBack, refreshNonce 
   const [roll, setRoll] = useState([]);
   const [apiKey, setApiKey] = useState('');
   const rollRef = useRef(roll);
+  const rollScrollRef = useRef(null);
   const inFlightRef = useRef(0);
   const queueRef = useRef([]);
   const fileInputRef = useRef(null);
@@ -47,6 +48,12 @@ export default function MultiAddModal({ binId, onNavigate, onBack, refreshNonce 
   useEffect(() => {
     rollRef.current = roll;
   }, [roll]);
+
+  // Keep the newest capture in view: pin the horizontal roll to the right edge as it grows.
+  useEffect(() => {
+    const el = rollScrollRef.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [roll.length]);
 
   const refreshApiKey = useCallback(() => {
     setApiKey(localStorage.getItem('gemini_api_key') || '');
@@ -375,7 +382,7 @@ export default function MultiAddModal({ binId, onNavigate, onBack, refreshNonce 
           <span className="text-[10px] text-slate-500">Scroll to review</span>
         </div>
 
-        <div className="flex-1 overflow-x-auto -mx-4 px-4">
+        <div ref={rollScrollRef} className="flex-1 overflow-x-auto -mx-4 px-4">
           <div className="flex items-stretch gap-3 min-h-full">
             {roll.length === 0 && (
               <div className="flex-1 flex flex-col items-center justify-center text-center py-8 min-w-[16rem]">
