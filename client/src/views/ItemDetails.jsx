@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  ArrowLeft, Package, MapPin, Tag, RefreshCw, Eye, Edit, Trash2, MoreHorizontal
+  ArrowLeft, Package, MapPin, Tag, RefreshCw, Eye, Edit, Trash2, MoreHorizontal, Sparkles, AlertCircle
 } from 'lucide-react';
-import { searchItems, getBin, deleteItem } from '../services/storage';
+import { searchItems, getBin, deleteItem, updateItem } from '../services/storage';
 import useImageSrc from '../hooks/useImageSrc';
+import { analyzeItemImage } from '../services/gemini';
+import { getImageBlob, isImageRef } from '../services/localImages';
 
 export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }) {
   const [item, setItem] = useState(null);
@@ -15,6 +17,18 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const overflowMenuRef = useRef(null);
   const itemImageSrc = useImageSrc(item?.image_url);
+
+  const [aiReviewOpen, setAiReviewOpen] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [aiProposed, setAiProposed] = useState(null);
+  const [aiChecked, setAiChecked] = useState({
+    name: false,
+    description: false,
+    search_tags: false,
+    visible_text: false
+  });
+  const [aiApplying, setAiApplying] = useState(false);
 
   useEffect(() => {
     if (!itemId) {
@@ -94,6 +108,82 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
     }
   };
 
+  const imageUrlToFile = async (imageUrl) => {
+    if (isImageRef(imageUrl)) {
+      const blob = await getImageBlob(imageUrl);
+      if (!blob) throw new Error('Could not load local image.');
+      return new File([blob], 'image.jpg', { type: blob.type || 'image/jpeg' });
+    }
+    const response = await fetch(imageUrl);
+    if (!response.ok) throw new Error('Could not load image.');
+    const blob = await response.blob();
+    return new File([blob], 'image.jpg', { type: blob.type || 'image/jpeg' });
+  };
+
+  const handleAiAnalysis = async () => {
+    setShowOverflowMenu(false);
+    setAiReviewOpen(true);
+    setAiLoading(true);
+    setAiError('');
+    setAiProposed(null);
+    setAiChecked({
+      name: false,
+      description: false,
+      search_tags: false,
+      visible_text: false
+    });
+    try {
+      const apiKey = localStorage.getItem('gemini_api_key');
+      const file = await imageUrlToFile(item.image_url);
+      const metadata = await analyzeItemImage(apiKey, file);
+      const proposedTags = [
+        ...(metadata.tags || []),
+        ...(metadata.colors || [])
+      ].map((t) => t.toLowerCase().trim()).filter(Boolean);
+      const proposed = {
+        name: metadata.title || '',
+        description: metadata.description || '',
+        search_tags: proposedTags,
+        visible_text: metadata.visible_text || ''
+      };
+      setAiProposed(proposed);
+      setAiChecked({
+        name: proposed.name !== (item.name || ''),
+        description: proposed.description !== (item.description || ''),
+        search_tags: JSON.stringify(proposed.search_tags) !== JSON.stringify(item.search_tags || []),
+        visible_text: proposed.visible_text !== (item.visible_text || '')
+      });
+    } catch (err) {
+      console.error(err);
+      setAiError(err.message || 'AI analysis failed.');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleAiApply = async () => {
+    const fields = {};
+    if (aiChecked.name) fields.name = aiProposed.name;
+    if (aiChecked.description) fields.description = aiProposed.description;
+    if (aiChecked.search_tags) fields.search_tags = aiProposed.search_tags;
+    if (aiChecked.visible_text) fields.visible_text = aiProposed.visible_text;
+    if (Object.keys(fields).length === 0) return;
+    setAiApplying(true);
+    setAiError('');
+    try {
+      const updated = await updateItem(item.id, fields);
+      setItem(updated);
+      setAiReviewOpen(false);
+    } catch (err) {
+      console.error(err);
+      setAiError(err.message || 'Failed to apply changes.');
+    } finally {
+      setAiApplying(false);
+    }
+  };
+
+  const aiAnalysisDisabled = !localStorage.getItem('gemini_api_key') || !item?.image_url;
+
   if (loading) {
     return (
       <div className="w-full max-w-4xl mx-auto py-12 text-center space-y-4">
@@ -157,6 +247,20 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
                 className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-2 transition-colors cursor-pointer"
               >
                 <Edit className="w-4 h-4 text-purple-400" /> Edit Item
+              </button>
+              <button
+                onClick={() => {
+                  setShowOverflowMenu(false);
+                  handleAiAnalysis();
+                }}
+                disabled={aiAnalysisDisabled}
+                className={`w-full px-4 py-2.5 text-left text-xs flex items-center gap-2 transition-colors cursor-pointer ${
+                  aiAnalysisDisabled
+                    ? 'text-slate-500 cursor-not-allowed'
+                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <Sparkles className={`w-4 h-4 ${aiAnalysisDisabled ? 'text-slate-500' : 'text-purple-400'}`} /> AI Analysis
               </button>
               <button
                 onClick={() => {
@@ -251,6 +355,124 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
           <pre className="bg-slate-950 p-4 rounded-2xl border border-slate-850 font-mono text-[11px] text-purple-300 whitespace-pre-wrap break-all max-h-48 overflow-y-auto">
             {item.visible_text}
           </pre>
+        </div>
+      )}
+
+      {/* AI Analysis Review Modal */}
+      {aiReviewOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm pointer-events-auto">
+          <div className="glass-panel w-full max-w-2xl rounded-3xl p-6 shadow-2xl space-y-5 relative max-h-[90vh] flex flex-col">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-purple-400" />
+              <h2 className="text-base font-bold text-slate-200">AI Analysis Review</h2>
+            </div>
+
+            {itemImageSrc && (
+              <div className="rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 h-40">
+                <img src={itemImageSrc} alt="Analyzed item" className="w-full h-full object-contain" />
+              </div>
+            )}
+
+            {aiLoading && (
+              <div className="flex flex-col items-center justify-center py-8 space-y-3">
+                <RefreshCw className="w-8 h-8 animate-spin text-purple-500" />
+                <p className="text-xs text-slate-400">Analyzing image with Gemini...</p>
+              </div>
+            )}
+
+            {!aiLoading && aiError && (
+              <div className="p-3.5 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2 text-xs text-red-300">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{aiError}</span>
+              </div>
+            )}
+
+            {!aiLoading && aiProposed && (
+              <div className="flex-1 overflow-y-auto space-y-3">
+                <div className="grid grid-cols-5 gap-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500 px-2">
+                  <span className="col-span-1">Field</span>
+                  <span className="col-span-2">Current</span>
+                  <span className="col-span-2">Proposed</span>
+                </div>
+
+                {[
+                  { key: 'name', label: 'Name', current: item.name || '', proposed: aiProposed.name },
+                  { key: 'description', label: 'Description', current: item.description || '', proposed: aiProposed.description },
+                  { key: 'search_tags', label: 'Tags', current: item.search_tags || [], proposed: aiProposed.search_tags },
+                  { key: 'visible_text', label: 'Visible Text', current: item.visible_text || '', proposed: aiProposed.visible_text }
+                ].map((field) => (
+                  <label
+                    key={field.key}
+                    className="grid grid-cols-5 gap-2 items-start p-3 rounded-2xl border border-slate-800/80 bg-slate-950/40 hover:bg-slate-900/60 cursor-pointer select-none"
+                  >
+                    <div className="col-span-1 flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={aiChecked[field.key]}
+                        onChange={() => setAiChecked((prev) => ({ ...prev, [field.key]: !prev[field.key] }))}
+                        className="rounded border-slate-700 bg-slate-900 text-purple-600 focus:ring-0 cursor-pointer"
+                      />
+                      <span className="text-xs font-semibold text-slate-300">{field.label}</span>
+                    </div>
+                    <div className="col-span-2 text-xs text-slate-400 break-words">
+                      {Array.isArray(field.current) ? (
+                        field.current.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {field.current.map((tag) => (
+                              <span key={tag} className="px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[10px]">{tag}</span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="italic text-slate-600">—</span>
+                        )
+                      ) : field.current ? (
+                        field.current
+                      ) : (
+                        <span className="italic text-slate-600">—</span>
+                      )}
+                    </div>
+                    <div className="col-span-2 text-xs text-purple-300 break-words">
+                      {Array.isArray(field.proposed) ? (
+                        field.proposed.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {field.proposed.map((tag) => (
+                              <span key={tag} className="px-2 py-1 rounded bg-purple-500/10 border border-purple-500/20 text-[10px]">{tag}</span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="italic text-slate-600">—</span>
+                        )
+                      ) : field.proposed ? (
+                        field.proposed
+                      ) : (
+                        <span className="italic text-slate-600">—</span>
+                      )}
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setAiReviewOpen(false)}
+                disabled={aiApplying}
+                className="flex-1 py-3 rounded-xl border border-slate-700/60 hover:bg-slate-800 text-slate-300 font-bold text-xs cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleAiApply}
+                disabled={aiApplying || !Object.values(aiChecked).some(Boolean)}
+                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 text-white font-bold text-xs cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                {aiApplying ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                Apply selected
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
