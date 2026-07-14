@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { RefreshCw, Save, Plus, Camera } from 'lucide-react';
 import { searchItems, getBins, updateItem, batchManageItems } from '../services/storage';
-import imageCompression from 'browser-image-compression';
+import { compressImage } from '../utils/imageCompression';
 import useImageSrc from '../hooks/useImageSrc';
 
 // Top-level stacked modal for editing an item. Rendered by App's modal stack
@@ -85,8 +85,7 @@ export default function EditItem({ itemId, onBack, refreshNonce }) {
 
   const handleProcessImage = async (file) => {
     try {
-      const options = { maxSizeMB: 0.25, maxWidthOrHeight: 1024, useWebWorker: true };
-      const compressed = await imageCompression(file, options);
+      const compressed = await compressImage(file);
       setEditImageFile(compressed);
       if (editImagePreview) URL.revokeObjectURL(editImagePreview);
       setEditImagePreview(URL.createObjectURL(compressed));
