@@ -10,6 +10,11 @@ import { createItem, updateItem, getBins, searchItems, batchManageItems } from '
 import { setPendingCreate } from '../services/pendingCreate';
 import useImageSrc from '../hooks/useImageSrc';
 
+// Sentinel for "no bin" so the selection can live in state/localStorage.
+const UNASSIGNED = 'unassigned';
+// Persisted bin choice so Add Item remembers the last selection across sessions.
+const LAST_BIN_KEY = 'smartqr_lastBinChoice';
+
 export default function ItemForm({
   mode = 'create',
   binId: initialBinId,
@@ -23,7 +28,16 @@ export default function ItemForm({
 
   const [apiKey, setApiKey] = useState('');
   const [binsList, setBinsList] = useState([]);
-  const [selectedBinId, setSelectedBinId] = useState(initialBinId || '');
+  const [selectedBinId, setSelectedBinId] = useState(() => {
+    if (initialBinId) return initialBinId;
+    try {
+      const saved = localStorage.getItem(LAST_BIN_KEY);
+      if (saved) return saved;
+    } catch {
+      // localStorage may be unavailable; fall through to the default choice
+    }
+    return UNASSIGNED;
+  });
 
   // Form state
   const [imageFile, setImageFile] = useState(null);
@@ -77,9 +91,13 @@ export default function ItemForm({
         const list = await getBins();
         if (!mounted) return;
         setBinsList(list);
-        if (isCreate && !initialBinId && list.length > 0) {
-          setSelectedBinId(list[0].id);
-        }
+        // Keep a persisted/initial choice only if it still resolves to a real bin;
+        // otherwise fall back to Unassigned so we never hand off a stale bin id.
+        setSelectedBinId((prev) => {
+          if (!isCreate || initialBinId || prev === UNASSIGNED) return prev;
+          if (list.some((b) => b.id === prev)) return prev;
+          return UNASSIGNED;
+        });
       } catch (err) {
         console.error('Failed to load bins for item assignment:', err);
       }
@@ -159,6 +177,16 @@ export default function ItemForm({
     setUseInlineCamera(false);
   };
 
+  const handleBinChange = (e) => {
+    const value = e.target.value;
+    setSelectedBinId(value);
+    try {
+      localStorage.setItem(LAST_BIN_KEY, value);
+    } catch {
+      // Ignore persistence failures; the in-memory choice still applies.
+    }
+  };
+
   const triggerFilePicker = () => {
     stopInlineCamera();
     if (isEdit) {
@@ -190,17 +218,15 @@ export default function ItemForm({
     // background on the details screen (a File cannot travel through URL params).
     if (isCreate && !imageFile) {
       const targetBinId = initialBinId || selectedBinId;
-      if (targetBinId) {
-        stopInlineCamera();
-        setPendingCreate(file);
-        onNavigate('item-details', {
-          pendingCreate: true,
-          binId: targetBinId,
-          autoAnalyze: !!apiKey
-        });
-        return;
-      }
-      // No bin yet: fall through to preview + form so the user can pick a bin.
+      const effectiveBinId = targetBinId && targetBinId !== UNASSIGNED ? targetBinId : null;
+      stopInlineCamera();
+      setPendingCreate(file);
+      onNavigate('item-details', {
+        pendingCreate: true,
+        binId: effectiveBinId,
+        autoAnalyze: !!apiKey
+      });
+      return;
     }
 
     setCompressing(true);
@@ -265,20 +291,21 @@ export default function ItemForm({
       return;
     }
     const targetBinId = isCreate ? initialBinId || selectedBinId : selectedBinId;
-    if (!targetBinId) {
-      setError('Please select a storage bin for assignment.');
-      return;
-    }
+    const binId = targetBinId && targetBinId !== UNASSIGNED ? targetBinId : null;
 
     setSaving(true);
     setError('');
 
     try {
       if (isCreate) {
-        await createItem(targetBinId, name.trim(), description.trim(), tags, visibleText.trim(), imageFile);
+        await createItem(binId, name.trim(), description.trim(), tags, visibleText.trim(), imageFile);
         setSuccessMsg('Item saved successfully!');
         setTimeout(() => {
-          onNavigate('bin-details', { binId: targetBinId });
+          if (binId) {
+            onNavigate('bin-details', { binId });
+          } else {
+            onNavigate('search', {});
+          }
         }, 1200);
       } else {
         const fields = {
@@ -286,12 +313,13 @@ export default function ItemForm({
           description: description.trim(),
           search_tags: tags,
           visible_text: visibleText.trim(),
-          bin_id: targetBinId
+          bin_id: binId
         };
         await updateItem(item.id, fields, imageFile);
-        // updateItem does not persist bin_id, so move the item if the bin changed.
-        if (item.bin_id && targetBinId && targetBinId !== item.bin_id) {
-          await batchManageItems(item.bin_id, 'reassign', [item.id], targetBinId);
+        // updateItem persists bin_id locally; the reassign keeps the server
+        // (sync) path consistent when moving between two real bins.
+        if (item.bin_id && binId && binId !== item.bin_id) {
+          await batchManageItems(item.bin_id, 'reassign', [item.id], binId);
         }
         onBack();
       }
@@ -357,6 +385,26 @@ export default function ItemForm({
             snapButtonLabel="Snap"
             uploadButtonLabel="Upload File"
           />
+        </div>
+
+        <div className="px-4 pb-4 shrink-0">
+          <label htmlFor="feedBin" className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+            Add to Bin
+          </label>
+          <select
+            id="feedBin"
+            value={selectedBinId}
+            onChange={handleBinChange}
+            className="w-full px-4 py-3 rounded-xl border border-slate-800 bg-slate-900 text-sm text-slate-100 focus:border-purple-500/50 focus:outline-none cursor-pointer"
+          >
+            <option value={UNASSIGNED}>Unassigned</option>
+            {binsList.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name} ({b.location})
+              </option>
+            ))}
+          </select>
+          <p className="text-[10px] text-slate-500 mt-1">Items can be saved without a bin. Your choice is remembered.</p>
         </div>
 
         <input
@@ -499,12 +547,11 @@ export default function ItemForm({
               <select
                 id="parentBin"
                 value={selectedBinId}
-                onChange={(e) => setSelectedBinId(e.target.value)}
+                onChange={handleBinChange}
                 className="w-full px-4 py-3 rounded-xl border border-slate-800 bg-slate-950 text-sm text-slate-100 focus:border-purple-500/50 focus:outline-none cursor-pointer"
                 disabled={saving}
-                required
               >
-                <option value="" disabled>Select a target bin...</option>
+                <option value={UNASSIGNED}>Unassigned</option>
                 {binsList.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name} ({b.location})
@@ -512,8 +559,8 @@ export default function ItemForm({
                 ))}
               </select>
               {binsList.length === 0 && (
-                <span className="block text-[10px] text-pink-400 mt-1 font-semibold">
-                  No bins available. Please create a storage bin first!
+                <span className="block text-[10px] text-slate-500 mt-1">
+                  No bins yet — the item will be saved unassigned.
                 </span>
               )}
             </div>

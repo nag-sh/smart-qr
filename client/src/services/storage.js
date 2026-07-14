@@ -336,9 +336,9 @@ export async function createItem(binId, name, description, searchTagsArray, visi
     const bins = await getLocalTable('local_bins');
     const items = await getLocalTable('local_items');
 
-    // Confirm parent bin exists
-    const parentBin = bins.find(b => b.id === binId);
-    if (!parentBin) {
+    // A parent bin is optional: items may be created without one.
+    const parentBin = binId ? bins.find(b => b.id === binId) : null;
+    if (binId && !parentBin) {
       throw new Error('Parent bin not found');
     }
 
@@ -352,10 +352,10 @@ export async function createItem(binId, name, description, searchTagsArray, visi
         entity_type: 'item',
         entity_id: id,
         entity_name: (name || '').trim(),
-        bin_id: binId,
-        bin_name: parentBin.name,
-        location: parentBin.location,
-        qr_id: parentBin.qr_id,
+        bin_id: binId || '',
+        bin_name: parentBin ? parentBin.name : '',
+        location: parentBin ? parentBin.location : '',
+        qr_id: parentBin ? parentBin.qr_id : '',
         created_at: new Date().toISOString()
       });
       image_url = await storeImage(processed);
@@ -363,7 +363,7 @@ export async function createItem(binId, name, description, searchTagsArray, visi
 
     const newItem = {
       id,
-      bin_id: binId,
+      bin_id: binId || null,
       name: (name || '').trim(),
       description: (description || '').trim(),
       image_url,
@@ -374,7 +374,10 @@ export async function createItem(binId, name, description, searchTagsArray, visi
 
     items.push(newItem);
     await setLocalTable('local_items', items);
-    await saveLocalAuditEntry('CREATE_ITEM', `Created item: ${(name || '').trim()} in bin: ${parentBin.name || 'Untitled Bin'}`);
+    await saveLocalAuditEntry(
+      'CREATE_ITEM',
+      `Created item: ${(name || '').trim()}${parentBin ? ` in bin: ${parentBin.name}` : ' (unassigned)'}`
+    );
     return newItem;
   }
 
@@ -683,6 +686,7 @@ export async function updateItem(id, fields, imageFile = null) {
       description: (fields.description !== undefined ? fields.description : items[idx].description).trim(),
       search_tags: fields.search_tags !== undefined ? fields.search_tags : items[idx].search_tags,
       visible_text: (fields.visible_text !== undefined ? fields.visible_text : items[idx].visible_text).trim(),
+      bin_id: fields.bin_id !== undefined ? fields.bin_id : items[idx].bin_id,
       image_url
     };
 
