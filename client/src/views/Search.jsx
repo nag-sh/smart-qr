@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search as SearchIcon, MapPin, QrCode, Box, Package, Filter as FilterIcon, Tag, Trash2, Move, RefreshCw, Check, X, Settings as SettingsIcon } from 'lucide-react';
+import { Search as SearchIcon, MapPin, QrCode, Box, Package, Layers, Filter as FilterIcon, Tag, Trash2, Move, RefreshCw, Check, X, Settings as SettingsIcon } from 'lucide-react';
 import { getBins, searchItems, batchDeleteBins, batchUpdateBinLocations, batchDeleteItems, batchMoveItems } from '../services/storage';
 import EntityList from '../components/EntityList';
 import BackButton from '../components/BackButton';
@@ -741,6 +741,22 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
                 <div>
                   <span className="block text-sm font-bold text-slate-200 group-hover:text-cyan-300">Print Randomized QR Codes</span>
                   <span className="block text-[10px] text-slate-500">Bulk print blank QR labels</span>
+                </div>
+              </button>
+
+              <button
+                onClick={() => {
+                  onNavigate('multi-add');
+                }}
+                className="flex items-center gap-3 p-4 rounded-2xl glass-card border border-slate-800/60 hover:border-amber-500/30 hover:bg-slate-900/60 transition-all cursor-pointer text-left group"
+                aria-label="Multi-add Items"
+              >
+                <div className="p-2 bg-amber-500/10 rounded-xl text-amber-400 group-hover:scale-110 transition-transform">
+                  <Layers className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="block text-sm font-bold text-slate-200 group-hover:text-amber-300">Multi-add Items</span>
+                  <span className="block text-[10px] text-slate-500">Bulk-capture many items at once</span>
                 </div>
               </button>
             </div>
