@@ -343,4 +343,54 @@ describe('MultiAddModal', () => {
 
     await waitFor(() => expect(screen.getByTestId('capture')).toBeInTheDocument());
   });
+
+  it('keeps the roll thumbnail visible after AI processing completes', async () => {
+    localStorage.setItem('gemini_api_key', 'k');
+
+    const { container } = render(
+      <MultiAddModal
+        binId="bin-1"
+        onNavigate={vi.fn()}
+        onBack={vi.fn()}
+        refreshNonce={0}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('capture'));
+
+    await waitFor(() => expect(screen.getByText('Test')).toBeInTheDocument());
+
+    // The captured picture must still be shown, not vanish once it succeeds.
+    const img = container.querySelector('img');
+    expect(img).not.toBeNull();
+    expect(img.getAttribute('src')).toBe('blob://preview-1');
+  });
+
+  it('continues processing in the background when the modal is closed before completion', async () => {
+    localStorage.setItem('gemini_api_key', 'k');
+
+    const { unmount } = render(
+      <MultiAddModal
+        binId="bin-1"
+        onNavigate={vi.fn()}
+        onBack={vi.fn()}
+        refreshNonce={0}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('capture'));
+    // Close the modal before the capture finishes processing.
+    unmount();
+
+    // The in-flight capture must still be created and added to the bin.
+    await waitFor(() => expect(createItem).toHaveBeenCalled());
+    expect(createItem).toHaveBeenCalledWith(
+      'bin-1',
+      'Box',
+      'd',
+      ['red', 'blue', 'green'],
+      '',
+      expect.any(File),
+    );
+  });
 });
