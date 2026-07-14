@@ -270,7 +270,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
                     setShowOverflowMenu(false);
                     handleStartEditBin();
                   }}
-                  className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-800 flex items-center gap-2 transition-colors cursor-pointer"
+                  className="w-full px-4 py-3 text-left text-sm text-slate-300 hover:bg-slate-800 flex items-center gap-2 transition-colors cursor-pointer"
                 >
                   <Edit className="w-4 h-4 text-slate-300" /> Edit Bin
                 </button>
@@ -280,7 +280,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
                     handleDeleteBinPress();
                   }}
                   disabled={deletingBin}
-                  className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-800 hover:text-red-400 flex items-center gap-2 transition-colors cursor-pointer"
+                  className="w-full px-4 py-3 text-left text-sm text-slate-300 hover:bg-slate-800 hover:text-red-400 flex items-center gap-2 transition-colors cursor-pointer"
                 >
                   {deletingBin ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4 text-red-400" />} Delete Bin
                 </button>
@@ -289,7 +289,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
                     setShowOverflowMenu(false);
                     onPrintBin(bin.qr_id, bin.name);
                   }}
-                  className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-800 flex items-center gap-2 transition-colors cursor-pointer"
+                  className="w-full px-4 py-3 text-left text-sm text-slate-300 hover:bg-slate-800 flex items-center gap-2 transition-colors cursor-pointer"
                 >
                   <Printer className="w-4 h-4 text-purple-400" /> Print Label
                 </button>

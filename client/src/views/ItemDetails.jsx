@@ -29,6 +29,7 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
     visible_text: false
   });
   const [aiApplying, setAiApplying] = useState(false);
+  const [showFullImage, setShowFullImage] = useState(false);
 
   useEffect(() => {
     if (!itemId) {
@@ -244,7 +245,7 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
                   setShowOverflowMenu(false);
                   onNavigate('edit-item', { itemId });
                 }}
-                className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-2 transition-colors cursor-pointer"
+                className="w-full px-4 py-3 text-left text-sm text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-2 transition-colors cursor-pointer"
               >
                 <Edit className="w-4 h-4 text-purple-400" /> Edit Item
               </button>
@@ -254,7 +255,7 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
                   handleAiAnalysis();
                 }}
                 disabled={aiAnalysisDisabled}
-                className={`w-full px-4 py-2.5 text-left text-xs flex items-center gap-2 transition-colors cursor-pointer ${
+                className={`w-full px-4 py-3 text-left text-sm flex items-center gap-2 transition-colors cursor-pointer ${
                   aiAnalysisDisabled
                     ? 'text-slate-500 cursor-not-allowed'
                     : 'text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -268,7 +269,7 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
                   handleDelete();
                 }}
                 disabled={deleting}
-                className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-800 hover:text-red-400 flex items-center gap-2 transition-colors cursor-pointer"
+                className="w-full px-4 py-3 text-left text-sm text-slate-300 hover:bg-slate-800 hover:text-red-400 flex items-center gap-2 transition-colors cursor-pointer"
               >
                 {deleting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4 text-red-400" />} Delete Item
               </button>
@@ -283,7 +284,9 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
         {/* Left side/top: Photo */}
         <div className="w-full md:w-1/3 aspect-video md:aspect-auto md:min-h-[160px] bg-slate-900 flex items-center justify-center relative border-b md:border-b-0 md:border-r border-slate-800/60">
           {itemImageSrc ? (
-            <img src={itemImageSrc} alt={item.name || 'Untitled Item'} className="w-full h-full object-cover" />
+            <button onClick={() => setShowFullImage(true)} className="w-full h-full block cursor-pointer">
+              <img src={itemImageSrc} alt={item.name || 'Untitled Item'} className="w-full h-full object-cover" />
+            </button>
           ) : (
             <Package className="w-12 h-12 text-slate-700 stroke-1" />
           )}
@@ -472,6 +475,32 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
                 Apply selected
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full-screen image viewer */}
+      {showFullImage && itemImageSrc && (
+        <div
+          className="fixed inset-0 z-[70] bg-slate-950 flex flex-col"
+          onClick={() => setShowFullImage(false)}
+        >
+          <div className="pt-[max(env(safe-area-inset-top),2rem)] px-4">
+            <button
+              onClick={() => setShowFullImage(false)}
+              className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              aria-label="Back"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="flex-1 flex items-center justify-center p-6">
+            <img
+              src={itemImageSrc}
+              alt={item.name || 'Untitled Item'}
+              onClick={(e) => e.stopPropagation()}
+              className="max-w-full max-h-full object-contain rounded-2xl"
+            />
           </div>
         </div>
       )}

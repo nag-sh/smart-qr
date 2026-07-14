@@ -102,6 +102,15 @@
   will-change: transform;
 }
 
+@keyframes shutter-flash {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.shutter-flash {
+  animation: shutter-flash 300ms ease-out forwards;
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;

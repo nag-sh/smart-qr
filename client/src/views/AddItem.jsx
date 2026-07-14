@@ -6,7 +6,7 @@ import { createItem, getBins } from '../services/storage';
 import { useCameraDevices } from '../hooks/useCameraDevices';
 
 export default function AddItem({ binId, onNavigate, onBack }) {
-  const { devices, currentDeviceId, switchCamera, hasMultipleCameras } = useCameraDevices();
+  const { hasMultipleCameras } = useCameraDevices();
   // Key state
   const [apiKey, setApiKey] = useState('');
   
@@ -52,9 +52,12 @@ export default function AddItem({ binId, onNavigate, onBack }) {
   const [useInlineCamera, setUseInlineCamera] = useState(false);
   const [cameraStream, setCameraStream] = useState(null);
   const [cameraReady, setCameraReady] = useState(false);
+  const [capturedFrame, setCapturedFrame] = useState(null);
+  const [shutterFlash, setShutterFlash] = useState(false);
 
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
+  const usingFrontCamera = useRef(false);
 
   const aiSteps = [
     'Connecting to Gemini Flash...',
@@ -101,9 +104,11 @@ export default function AddItem({ binId, onNavigate, onBack }) {
     return () => clearInterval(interval);
   }, [aiAnalyzing]);
 
-  const startInlineCamera = async (deviceId = currentDeviceId) => {
+  const startInlineCamera = async (facingMode = 'environment') => {
     setError('');
     setCameraReady(false);
+    setCapturedFrame(null);
+    setShutterFlash(false);
 
     if (cameraStream) {
       cameraStream.getTracks().forEach(track => track.stop());
@@ -122,26 +127,16 @@ export default function AddItem({ binId, onNavigate, onBack }) {
 
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        video: deviceId
-          ? { deviceId: { exact: deviceId }, ...baseConstraints }
-          : { facingMode: 'environment', ...baseConstraints }
+        video: { facingMode, ...baseConstraints }
       });
     } catch (err) {
-      if (deviceId) {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'environment', ...baseConstraints }
-          });
-        } catch (fallbackErr) {
-          console.error('Failed to get camera stream:', fallbackErr);
-          setCameraStream(null);
-          setUseInlineCamera(false);
-          setError('Camera access blocked. Opening file selector...');
-          triggerFilePicker();
-          return;
-        }
-      } else {
-        console.error('Failed to get camera stream:', err);
+      const fallbackFacingMode = facingMode === 'environment' ? 'user' : 'environment';
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: fallbackFacingMode, ...baseConstraints }
+        });
+      } catch (fallbackErr) {
+        console.error('Failed to get camera stream:', fallbackErr);
         setCameraStream(null);
         setUseInlineCamera(false);
         setError('Camera access blocked. Opening file selector...');
@@ -165,8 +160,9 @@ export default function AddItem({ binId, onNavigate, onBack }) {
 
   const handleSwitchCamera = () => {
     setCameraReady(false);
-    const nextDeviceId = switchCamera();
-    startInlineCamera(nextDeviceId);
+    usingFrontCamera.current = !usingFrontCamera.current;
+    const facingMode = usingFrontCamera.current ? 'user' : 'environment';
+    startInlineCamera(facingMode);
   };
 
   const handleVideoReady = () => {
@@ -199,6 +195,11 @@ export default function AddItem({ binId, onNavigate, onBack }) {
       const ctx = canvas.getContext('2d');
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      setCapturedFrame(dataUrl);
+      setShutterFlash(true);
+      setTimeout(() => setShutterFlash(false), 300);
+
       canvas.toBlob(async (blob) => {
         if (!blob) {
           setError('Failed to capture frame.');
@@ -206,10 +207,8 @@ export default function AddItem({ binId, onNavigate, onBack }) {
         }
         const file = new File([blob], 'item-capture.jpg', { type: 'image/jpeg' });
         
-        // Stop inline stream before executing AI analysis overlay
-        stopInlineCamera();
-        
         await processAndAnalyzeImage(file);
+        stopInlineCamera();
       }, 'image/jpeg', 0.85);
 
     } catch (err) {
@@ -422,17 +421,27 @@ export default function AddItem({ binId, onNavigate, onBack }) {
             className="hidden"
           />
           
-          <div className="relative bg-slate-950 aspect-square overflow-hidden rounded-2xl">
+          <div className={`relative bg-slate-950 overflow-hidden rounded-2xl ${useInlineCamera ? 'aspect-video' : 'aspect-square'}`}>
             {useInlineCamera ? (
               <>
                 <video
                   ref={videoRef}
                   autoPlay
                   playsInline
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain"
                   onLoadedData={handleVideoReady}
                   onLoadedMetadata={handleVideoReady}
                 />
+                {capturedFrame && (
+                  <img
+                    src={capturedFrame}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-contain z-10"
+                  />
+                )}
+                {shutterFlash && (
+                  <div className="absolute inset-0 bg-white z-20 shutter-flash pointer-events-none" />
+                )}
                 {hasMultipleCameras && (
                   <button
                     type="button"

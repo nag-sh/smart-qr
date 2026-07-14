@@ -7,7 +7,7 @@ import { useCameraDevices } from '../hooks/useCameraDevices';
 const decodeInterval = 200; // 5 fps decode; tunable
 
 export default function Scanner({ onNavigate, onBack }) {
-  const { devices, currentDeviceId, switchCamera, hasMultipleCameras } = useCameraDevices();
+  const { hasMultipleCameras } = useCameraDevices();
   const [scanResult, setScanResult] = useState('');
   const [error, setError] = useState('');
   const [isScanning, setIsScanning] = useState(false);
@@ -23,6 +23,7 @@ export default function Scanner({ onNavigate, onBack }) {
   const decodeFrameRef = useRef(null);
   const startingRef = useRef(false);
   const scanningRef = useRef(false);
+  const usingFrontCamera = useRef(false);
   const handleScanSuccessRef = useRef(handleScanSuccess);
 
   handleScanSuccessRef.current = handleScanSuccess;
@@ -68,7 +69,7 @@ export default function Scanner({ onNavigate, onBack }) {
     scanningRef.current = false;
   }
 
-  const startScanner = async (deviceId = currentDeviceId) => {
+  const startScanner = async (facingMode = 'environment') => {
     if (startingRef.current || !videoRef.current || !workerRef.current) return;
     startingRef.current = true;
     cleanupScanner();
@@ -84,27 +85,18 @@ export default function Scanner({ onNavigate, onBack }) {
     let stream = null;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        video: deviceId
-          ? { deviceId: { exact: deviceId }, ...baseVideo }
-          : { facingMode: 'environment', ...baseVideo },
+        video: { facingMode, ...baseVideo },
         audio: false,
       });
     } catch (err) {
-      if (deviceId) {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'environment', ...baseVideo },
-            audio: false,
-          });
-        } catch (fallbackErr) {
-          console.error('Failed to start camera:', fallbackErr);
-          setIsScanning(false);
-          setError('Could not access camera. Please ensure camera permission is granted.');
-          startingRef.current = false;
-          return;
-        }
-      } else {
-        console.error('Failed to start camera:', err);
+      const fallbackFacingMode = facingMode === 'environment' ? 'user' : 'environment';
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: fallbackFacingMode, ...baseVideo },
+          audio: false,
+        });
+      } catch (fallbackErr) {
+        console.error('Failed to start camera:', fallbackErr);
         setIsScanning(false);
         setError('Could not access camera. Please ensure camera permission is granted.');
         startingRef.current = false;
@@ -134,8 +126,9 @@ export default function Scanner({ onNavigate, onBack }) {
   };
 
   const handleSwitchCamera = () => {
-    const nextDeviceId = switchCamera();
-    startScanner(nextDeviceId);
+    usingFrontCamera.current = !usingFrontCamera.current;
+    const facingMode = usingFrontCamera.current ? 'user' : 'environment';
+    startScanner(facingMode);
   };
 
   const scheduleDecode = () => {
@@ -150,11 +143,16 @@ export default function Scanner({ onNavigate, onBack }) {
       }
       const vw = video.videoWidth;
       const vh = video.videoHeight;
-      canvas.width = vw;
-      canvas.height = vh;
+      const visibleSize = Math.min(vw, vh);
+      const scanFraction = 0.88; // 80% scan frame + 8% margin (4% each side)
+      const scanSize = Math.round(visibleSize * scanFraction);
+      const sx = Math.round((vw - scanSize) / 2);
+      const sy = Math.round((vh - scanSize) / 2);
+      canvas.width = scanSize;
+      canvas.height = scanSize;
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      ctx.drawImage(video, 0, 0, vw, vh);
-      const imageData = ctx.getImageData(0, 0, vw, vh);
+      ctx.drawImage(video, sx, sy, scanSize, scanSize, 0, 0, scanSize, scanSize);
+      const imageData = ctx.getImageData(0, 0, scanSize, scanSize);
       workerRef.current.postMessage({ width: imageData.width, height: imageData.height, data: imageData.data }, [imageData.data.buffer]);
     };
 

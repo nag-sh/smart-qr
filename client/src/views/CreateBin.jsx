@@ -5,7 +5,7 @@ import { createBin, getBins } from '../services/storage';
 import { useCameraDevices } from '../hooks/useCameraDevices';
 
 export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refreshNonce }) {
-  const { devices, currentDeviceId, switchCamera, hasMultipleCameras } = useCameraDevices();
+  const { hasMultipleCameras } = useCameraDevices();
   // Mode switcher when qrId is undefined: 'choice' | 'form'
   const [flowMode, setFlowMode] = useState(qrId ? 'form' : 'choice');
   const [generateMode, setGenerateMode] = useState(false); // True if system generating QR
@@ -40,6 +40,8 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
   const [useInlineCamera, setUseInlineCamera] = useState(false);
   const [cameraStream, setCameraStream] = useState(null);
   const [cameraReady, setCameraReady] = useState(false);
+  const [capturedFrame, setCapturedFrame] = useState(null);
+  const [shutterFlash, setShutterFlash] = useState(false);
 
   // Success state for generated digital QR
   const [successBin, setSuccessBin] = useState(null);
@@ -47,6 +49,7 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
   
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
+  const usingFrontCamera = useRef(false);
 
   // Stop camera tracks on unmount
   useEffect(() => {
@@ -64,9 +67,11 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
     }
   }, [useInlineCamera, cameraStream]);
 
-  const startInlineCamera = async (deviceId = currentDeviceId) => {
+  const startInlineCamera = async (facingMode = 'environment') => {
     setError('');
     setCameraReady(false);
+    setCapturedFrame(null);
+    setShutterFlash(false);
 
     if (cameraStream) {
       cameraStream.getTracks().forEach(track => track.stop());
@@ -85,26 +90,16 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
 
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        video: deviceId
-          ? { deviceId: { exact: deviceId }, ...baseConstraints }
-          : { facingMode: 'environment', ...baseConstraints }
+        video: { facingMode, ...baseConstraints }
       });
     } catch (err) {
-      if (deviceId) {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'environment', ...baseConstraints }
-          });
-        } catch (fallbackErr) {
-          console.error('Failed to get camera stream:', fallbackErr);
-          setCameraStream(null);
-          setUseInlineCamera(false);
-          setError('Camera access blocked. Opening file selector...');
-          triggerFilePicker();
-          return;
-        }
-      } else {
-        console.error('Failed to get camera stream:', err);
+      const fallbackFacingMode = facingMode === 'environment' ? 'user' : 'environment';
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: fallbackFacingMode, ...baseConstraints }
+        });
+      } catch (fallbackErr) {
+        console.error('Failed to get camera stream:', fallbackErr);
         setCameraStream(null);
         setUseInlineCamera(false);
         setError('Camera access blocked. Opening file selector...');
@@ -128,8 +123,9 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
 
   const handleSwitchCamera = () => {
     setCameraReady(false);
-    const nextDeviceId = switchCamera();
-    startInlineCamera(nextDeviceId);
+    usingFrontCamera.current = !usingFrontCamera.current;
+    const facingMode = usingFrontCamera.current ? 'user' : 'environment';
+    startInlineCamera(facingMode);
   };
 
   const handleVideoReady = () => {
@@ -161,6 +157,11 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
       
       const ctx = canvas.getContext('2d');
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      setCapturedFrame(dataUrl);
+      setShutterFlash(true);
+      setTimeout(() => setShutterFlash(false), 300);
 
       canvas.toBlob(async (blob) => {
         if (!blob) {
@@ -449,17 +450,27 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
             className="hidden"
           />
           
-          <div className="relative bg-slate-950 aspect-square overflow-hidden rounded-2xl">
+          <div className={`relative bg-slate-950 overflow-hidden rounded-2xl ${useInlineCamera ? 'aspect-video' : 'aspect-square'}`}>
             {useInlineCamera ? (
               <>
                 <video
                   ref={videoRef}
                   autoPlay
                   playsInline
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain"
                   onLoadedData={handleVideoReady}
                   onLoadedMetadata={handleVideoReady}
                 />
+                {capturedFrame && (
+                  <img
+                    src={capturedFrame}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-contain z-10"
+                  />
+                )}
+                {shutterFlash && (
+                  <div className="absolute inset-0 bg-white z-20 shutter-flash pointer-events-none" />
+                )}
                 {hasMultipleCameras && (
                   <button
                     type="button"

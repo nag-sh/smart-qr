@@ -31,8 +31,13 @@ public class MainActivity extends BridgeActivity {
 
         @Override
         public void onPermissionRequest(final PermissionRequest request) {
-            // Grant camera access for the WebView's getUserMedia (live QR scanning).
-            request.grant(request.getResources());
+            // Delegate to Capacitor's BridgeWebChromeClient, which correctly
+            // requests the Android CAMERA runtime permission (showing the system
+            // prompt) BEFORE granting the WebView-level permission. Granting the
+            // WebView permission directly without the Android runtime permission
+            // makes getUserMedia hang with no error (the camera never opens),
+            // which is why the in-app camera did nothing in every view.
+            super.onPermissionRequest(request);
         }
     }
 }
