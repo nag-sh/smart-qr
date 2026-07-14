@@ -150,11 +150,16 @@ export default function Scanner({ onNavigate, onBack }) {
       }
       const vw = video.videoWidth;
       const vh = video.videoHeight;
-      canvas.width = vw;
-      canvas.height = vh;
+      const visibleSize = Math.min(vw, vh);
+      const scanFraction = 0.88; // 80% scan frame + 8% margin (4% each side)
+      const scanSize = Math.round(visibleSize * scanFraction);
+      const sx = Math.round((vw - scanSize) / 2);
+      const sy = Math.round((vh - scanSize) / 2);
+      canvas.width = scanSize;
+      canvas.height = scanSize;
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      ctx.drawImage(video, 0, 0, vw, vh);
-      const imageData = ctx.getImageData(0, 0, vw, vh);
+      ctx.drawImage(video, sx, sy, scanSize, scanSize, 0, 0, scanSize, scanSize);
+      const imageData = ctx.getImageData(0, 0, scanSize, scanSize);
       workerRef.current.postMessage({ width: imageData.width, height: imageData.height, data: imageData.data }, [imageData.data.buffer]);
     };
 

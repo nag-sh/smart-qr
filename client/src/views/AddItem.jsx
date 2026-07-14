@@ -422,14 +422,14 @@ export default function AddItem({ binId, onNavigate, onBack }) {
             className="hidden"
           />
           
-          <div className="relative bg-slate-950 aspect-square overflow-hidden rounded-2xl">
+          <div className={`relative bg-slate-950 overflow-hidden rounded-2xl ${useInlineCamera ? 'aspect-video' : 'aspect-square'}`}>
             {useInlineCamera ? (
               <>
                 <video
                   ref={videoRef}
                   autoPlay
                   playsInline
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain"
                   onLoadedData={handleVideoReady}
                   onLoadedMetadata={handleVideoReady}
                 />

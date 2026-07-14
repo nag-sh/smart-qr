@@ -232,10 +232,10 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
             onClick={() => setShowOverflowMenu(prev => !prev)}
             aria-label="More actions"
             aria-expanded={showOverflowMenu}
-            className="p-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer border border-slate-700/50"
+            className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer border border-slate-700/50"
             title="More actions"
           >
-            <MoreHorizontal className="w-6 h-6" />
+            <MoreHorizontal className="w-4 h-4" />
           </button>
           {showOverflowMenu && (
             <div className="absolute right-0 mt-2 w-44 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl z-50 py-1">
