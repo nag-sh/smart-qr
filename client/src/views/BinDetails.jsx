@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Box, MapPin, QrCode, Plus, AlertCircle, RefreshCw, 
   Package, Printer, Edit, Trash2, Check, MoreHorizontal,
-  FolderTree, LayoutGrid, List, Image as ImageIcon
+  FolderTree, Layers, LayoutGrid, List, Image as ImageIcon
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { getBin, getBins, updateBin, deleteBin, batchManageItems } from '../services/storage';
@@ -420,6 +420,14 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
         className="w-full py-4 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-purple-900/10 hover:shadow-purple-500/20 transition-all active:scale-98 cursor-pointer"
       >
         <Plus className="w-5 h-5" /> Add Item to Bin
+      </button>
+
+      {/* Action Button: Multi-add (bulk entry) */}
+      <button
+        onClick={() => onNavigate('multi-add', { binId: bin.id })}
+        className="w-full py-4 rounded-2xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-98 cursor-pointer"
+      >
+        <Layers className="w-5 h-5" /> Multi-add Items
       </button>
 
       {/* Items List */}
