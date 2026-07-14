@@ -4,7 +4,9 @@ import { parseModalStack, stackToSearchString, dedupeStack } from './modalStack.
 import { Capacitor } from '@capacitor/core';
 import { useEdgeGestures } from './hooks/useEdgeGestures.js';
 import { Print } from './plugins/print.js';
-import { QrCode, Settings as SettingsIcon, Printer, Info, ArrowLeft, Plus, Search as SearchIcon, AlertTriangle } from 'lucide-react';
+import { QrCode, Settings as SettingsIcon, Printer, Info, Plus, Search as SearchIcon } from 'lucide-react';
+import BackButton from './components/BackButton';
+import MessageBanner from './components/MessageBanner';
 
 // Import Views
 import Search from './views/Search';
@@ -12,8 +14,7 @@ import Scanner from './views/Scanner';
 import CreateBin from './views/CreateBin';
 import BinDetails from './views/BinDetails';
 import ItemDetails from './views/ItemDetails';
-import EditItem from './views/EditItem';
-import AddItem from './views/AddItem';
+import ItemForm from './views/ItemForm';
 import Settings from './views/Settings';
 import RestorePoints from './views/RestorePoints';
 import PrintRandomized from './views/PrintRandomized';
@@ -29,13 +30,11 @@ function ModalShell({ onClose, hideClose = false, children }) {
       <div className="w-full sm:w-[96%] sm:max-w-4xl" onClick={(e) => e.stopPropagation()}>
         <div className="glass-panel-modal w-full max-h-[90vh] overflow-y-auto overflow-x-hidden rounded-3xl relative animate-in fade-in zoom-in-95 duration-200">
           {!hideClose && (
-            <button
+            <BackButton
               onClick={onClose}
-              className="absolute top-4 left-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              className="absolute top-4 left-4"
               aria-label="Back to Search"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
+            />
           )}
           {children}
         </div>
@@ -172,12 +171,27 @@ function AppContent() {
   useEdgeGestures(rootRef, { onBack });
 
   // central printing trigger
-  const handlePrintBin = (qrId, binName) => {
+  const handlePrintBin = async (qrId, binName) => {
     // Avoid the two print containers ever coexisting in print media.
     setRandomPrintData(null);
-    setPrintData({ qr_id: qrId, name: binName });
     setPrintError('');
     setShowPrintHelper(true);
+
+    let dataUrl = '';
+    try {
+      dataUrl = await QRCode.toDataURL(qrId, {
+        width: 1000,
+        margin: 1,
+        errorCorrectionLevel: 'M'
+      });
+    } catch (err) {
+      console.error('QR generation failed:', err);
+      setPrintError('Failed to generate QR code');
+      return;
+    }
+
+    setPrintData({ qr_id: qrId, name: binName, dataUrl });
+
     // Give the DOM a beat to render the hidden label, then use the native
     // print path on Android (WebViews don't support window.print) and the
     // standard browser print dialog everywhere else.
@@ -263,8 +277,8 @@ function AppContent() {
         case 'create-bin': view = <CreateBin qrId={params.qrId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} refreshNonce={refreshNonce} />; break;
         case 'bin-details': view = <BinDetails binId={params.binId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
         case 'item-details': view = <ItemDetails itemId={params.itemId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
-        case 'edit-item': view = <EditItem itemId={params.itemId} onBack={onBack} refreshNonce={refreshNonce} />; break;
-        case 'add-item': view = <AddItem binId={params.binId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
+        case 'edit-item': view = <ItemForm mode="edit" itemId={params.itemId} onBack={onBack} refreshNonce={refreshNonce} />; break;
+        case 'add-item': view = <ItemForm mode="create" binId={params.binId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
         case 'settings': view = <Settings onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
         case 'restore-points': view = <RestorePoints onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
         case 'print-randomized': view = <PrintRandomized onNavigate={onNavigate} onBack={onBack} onPrintRandom={handlePrintRandom} />; break;
@@ -336,17 +350,15 @@ function AppContent() {
       {showPrintHelper && printData && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm no-print">
           <div className="glass-panel w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-slate-800 relative text-center space-y-5 animate-in fade-in zoom-in-95 duration-200">
-            <button
+            <BackButton
               onClick={() => {
                 setShowPrintHelper(false);
                 setPrintData(null);
                 setPrintError('');
               }}
-              className="absolute top-4 left-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              className="absolute top-4 left-4"
               aria-label="Back to Search"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
+            />
 
             <div className="p-3 bg-purple-500/10 rounded-full text-purple-400 w-fit mx-auto">
               <Printer className="w-7 h-7" />
@@ -360,10 +372,12 @@ function AppContent() {
             </div>
 
             {printError && (
-              <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-2.5 text-xs text-red-300">
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>{printError}</span>
-              </div>
+              <MessageBanner
+                type="error"
+                message={printError}
+                className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-2.5 text-xs text-red-300"
+                iconClassName="w-4 h-4 shrink-0 mt-0.5"
+              />
             )}
 
             {/* Android Settings printer deep-link fallback */}
@@ -402,7 +416,7 @@ function AppContent() {
       {printData && (
         <div className="print-label-only hidden">
           <img
-            src={`https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&data=${encodeURIComponent(printData.qr_id)}`}
+            src={printData.dataUrl}
             alt="Print QR Label"
             className="print-qr-code"
           />

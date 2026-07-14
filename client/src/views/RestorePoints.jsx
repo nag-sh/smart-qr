@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
   History, RotateCcw, Clock, Plus, RefreshCw, CheckCircle2, AlertTriangle,
-  Box, Package, ArrowLeft, GitBranch, Check, Layers, Info, Pencil, Trash2
+  Box, Package, GitBranch, Check, Layers, Info, Pencil, Trash2
 } from 'lucide-react';
 import {
   getAuditLog, restoreAuditEntry, cherryPickAuditEntry, restoreSelectedChanges
 } from '../services/storage';
 import useImageSrc from '../hooks/useImageSrc';
+import BackButton from '../components/BackButton';
+import MessageBanner from '../components/MessageBanner';
 
 function AffectedImage({ url, name }) {
   const src = useImageSrc(url);
@@ -339,13 +341,10 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
     <div className="w-full max-w-4xl mx-auto py-4 px-3 space-y-4 relative overflow-hidden">
       {/* Header with back button */}
       <div className="flex items-center gap-2.5">
-        <button
+        <BackButton
           onClick={() => onBack()}
-          className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
           aria-label="Back to Settings"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
+        />
         <div className="flex-1 flex items-center gap-2.5">
           <div className="p-2.5 bg-purple-500/10 rounded-xl text-purple-400">
             <History className="w-5 h-5" />
@@ -379,14 +378,12 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
       {(modalTypes?.includes('restore-revert') || modalTypes?.includes('restore-cherry')) && restoreTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm pointer-events-auto">
           <div className={`glass-panel w-full ${cherryPickMode ? 'max-w-2xl' : 'max-w-sm'} rounded-3xl p-5 shadow-2xl border border-purple-500/20 space-y-4 relative max-h-[90vh] flex flex-col justify-between`}>
-            <button
+            <BackButton
               onClick={() => { if (!restoring) { onBack(); } }}
-              className="absolute top-3 left-3 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              className="absolute top-3 left-3"
               aria-label="Back"
               disabled={restoring}
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
+            />
 
             {cherryPickMode ? (
               <div className="flex-1 flex flex-col overflow-hidden space-y-3">
@@ -497,25 +494,31 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
                     {getRelativeTime(restoreTarget.created_at)}
                   </div>
                 </div>
-                <div className="bg-red-500/10 border border-red-500/25 rounded-xl p-3 flex items-center gap-2 text-[11px] text-red-300 text-left">
-                  <AlertTriangle className="w-4 h-4 shrink-0 text-red-400" />
-                  <span>Overwrites all changes since this point.</span>
-                </div>
+                <MessageBanner
+                  type="error"
+                  message="Overwrites all changes since this point."
+                  className="bg-red-500/10 border border-red-500/25 rounded-xl p-3 flex items-center gap-2 text-[11px] text-red-300 text-left"
+                  iconClassName="w-4 h-4 shrink-0 text-red-400"
+                />
               </div>
             )}
 
             <div className="space-y-3 shrink-0 pt-2 border-t border-slate-800">
               {restoreSuccess && (
-                <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center gap-2 text-xs text-emerald-300">
-                  <CheckCircle2 className="w-4 h-4 shrink-0" />
-                  {restoreSuccess}
-                </div>
+                <MessageBanner
+                  type="success"
+                  message={restoreSuccess}
+                  className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center gap-2 text-xs text-emerald-300"
+                  iconClassName="w-4 h-4 shrink-0"
+                />
               )}
               {restoreError && (
-                <div className="p-2.5 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-2 text-xs text-red-300 font-bold">
-                  <AlertTriangle className="w-4 h-4 shrink-0" />
-                  {restoreError}
-                </div>
+                <MessageBanner
+                  type="error"
+                  message={restoreError}
+                  className="p-2.5 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-2 text-xs text-red-300 font-bold"
+                  iconClassName="w-4 h-4 shrink-0"
+                />
               )}
               <div className="flex gap-2">
                 <button
@@ -554,14 +557,12 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
       {modalTypes?.includes('restore-multi') && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm pointer-events-auto">
           <div className="glass-panel w-full max-w-sm rounded-3xl p-5 shadow-2xl border border-purple-500/20 space-y-4 relative max-h-[90vh] flex flex-col justify-between">
-            <button
+            <BackButton
               onClick={() => { if (!restoring) onBack(); }}
-              className="absolute top-3 left-3 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              className="absolute top-3 left-3"
               aria-label="Back"
               disabled={restoring}
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
+            />
 
             <div className="text-center space-y-3 shrink-0">
               <div className="p-3 bg-purple-500/15 rounded-full w-fit mx-auto">
@@ -586,24 +587,30 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
                 </ul>
               </div>
             ) : (
-              <div className="bg-emerald-500/10 border border-emerald-500/25 rounded-xl p-3 flex items-center gap-2 text-xs text-emerald-300 shrink-0">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>No conflicts detected.</span>
-              </div>
+              <MessageBanner
+                type="success"
+                message="No conflicts detected."
+                className="bg-emerald-500/10 border border-emerald-500/25 rounded-xl p-3 flex items-center gap-2 text-xs text-emerald-300 shrink-0"
+                iconClassName="w-4 h-4 text-emerald-400 shrink-0"
+              />
             )}
 
             <div className="space-y-3 shrink-0 pt-2 border-t border-slate-800">
               {restoreSuccess && (
-                <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center gap-2 text-xs text-emerald-300">
-                  <CheckCircle2 className="w-4 h-4 shrink-0" />
-                  {restoreSuccess}
-                </div>
+                <MessageBanner
+                  type="success"
+                  message={restoreSuccess}
+                  className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center gap-2 text-xs text-emerald-300"
+                  iconClassName="w-4 h-4 shrink-0"
+                />
               )}
               {restoreError && !multiRestoreConflicts.length && (
-                <div className="p-2.5 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-2 text-xs text-red-300 font-bold">
-                  <AlertTriangle className="w-4 h-4 shrink-0" />
-                  {restoreError}
-                </div>
+                <MessageBanner
+                  type="error"
+                  message={restoreError}
+                  className="p-2.5 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-2 text-xs text-red-300 font-bold"
+                  iconClassName="w-4 h-4 shrink-0"
+                />
               )}
               <div className="flex gap-2">
                 <button
@@ -635,13 +642,11 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
           <div className="glass-panel w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl border border-purple-500/20 flex flex-col max-h-[85vh]">
             {/* Header */}
             <div className="p-4 border-b border-slate-800/60 bg-gradient-to-b from-purple-950/20 to-transparent flex items-center gap-3">
-              <button
+              <BackButton
                 onClick={() => onBack()}
-                className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer shrink-0"
+                className="shrink-0"
                 aria-label="Back"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
+              />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 mb-1">
                   <span className={`px-1.5 py-0.5 rounded text-[9px] uppercase font-bold tracking-wider flex items-center gap-0.5 ${getOperationColor(selectedAuditEntry.operation)}`}>

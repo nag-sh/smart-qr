@@ -2,13 +2,13 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
-import { isNative } from './utils/platform.js'
+import { Capacitor } from '@capacitor/core'
 import { initStorage } from './services/storage.js'
 
 async function bootstrap() {
   await initStorage()
 
-  if (!isNative() && 'serviceWorker' in navigator) {
+  if (!Capacitor.isNativePlatform() && 'serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('/sw.js')
         .then(reg => console.log('Service Worker registered successfully with scope: ', reg.scope))

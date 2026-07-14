@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:mobile": "vite build --config vite.mobile.config.js",
+    "build:mobile": "CAPACITOR=true vite build",
     "android:sync": "npm run build:mobile && cap sync android",
     "android:build": "npm run android:sync && cd android && ./gradlew assembleDebug",
     "android:open": "npm run android:sync && cap open android",

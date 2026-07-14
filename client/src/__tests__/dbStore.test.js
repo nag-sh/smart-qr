@@ -13,8 +13,6 @@ vi.mock('@capacitor/preferences', () => ({
 import {
   getTable,
   setTable,
-  removeTable,
-  clearAll,
   migrateFromLocalStorage
 } from '../services/dbStore';
 
@@ -24,7 +22,21 @@ describe('dbStore', () => {
   });
 
   afterEach(async () => {
-    await clearAll();
+    // Clear all entries from the IndexedDB object store
+    // (deleteDatabase hangs because dbStore holds an open connection;
+    //  setTable to [] would make getTable return [] instead of null)
+    const db = await new Promise((res, rej) => {
+      const req = indexedDB.open('smart-qr-data');
+      req.onsuccess = () => res(req.result);
+      req.onerror = () => rej(req.error);
+    });
+    if (!db) return;
+    await new Promise((res, rej) => {
+      const tx = db.transaction('tables', 'readwrite');
+      tx.objectStore('tables').clear();
+      tx.oncomplete = () => { db.close(); res(); };
+      tx.onerror = () => { db.close(); rej(tx.error); };
+    });
   });
 
   it('returns null for missing tables', async () => {
@@ -35,20 +47,6 @@ describe('dbStore', () => {
     const bins = [{ id: '1', name: 'Bin A' }];
     await setTable('local_bins', bins);
     expect(await getTable('local_bins')).toEqual(bins);
-  });
-
-  it('removes a table', async () => {
-    await setTable('local_items', [{ id: 'a' }]);
-    await removeTable('local_items');
-    expect(await getTable('local_items')).toBeNull();
-  });
-
-  it('clears all tables', async () => {
-    await setTable('local_bins', [{ id: '1' }]);
-    await setTable('local_items', [{ id: '2' }]);
-    await clearAll();
-    expect(await getTable('local_bins')).toBeNull();
-    expect(await getTable('local_items')).toBeNull();
   });
 
   it('migrates localStorage tables and settings into async stores', async () => {

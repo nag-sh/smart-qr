@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera } from '@capacitor/camera';
-import { Camera as CameraIcon, CameraOff, QrCode, AlertCircle, ArrowRight, Keyboard, RefreshCw, ArrowLeft, SwitchCamera } from 'lucide-react';
+import { Camera as CameraIcon, CameraOff, QrCode, ArrowRight, Keyboard, RefreshCw, SwitchCamera } from 'lucide-react';
 import { getBin } from '../services/storage';
 import { useCameraDevices } from '../hooks/useCameraDevices';
+import BackButton from '../components/BackButton';
+import MessageBanner from '../components/MessageBanner';
 
 const decodeInterval = 200; // 5 fps decode; tunable
 
@@ -273,13 +275,11 @@ export default function Scanner({ onNavigate, onBack }) {
       <div className="absolute -top-24 -left-24 w-48 h-48 bg-purple-600/10 rounded-full blur-3xl pointer-events-none"></div>
 
       <div className="p-5 flex items-center gap-3 border-b border-slate-800/50">
-        <button
+        <BackButton
           onClick={onBack}
+          className="-ml-1"
           aria-label="Back to Search"
-          className="p-2 -ml-1 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
+        />
         <div className="flex items-center gap-2">
           <QrCode className="w-5 h-5 text-purple-400" />
           <h1 className="font-bold text-sm text-slate-200">Scan QR Code</h1>
@@ -418,10 +418,12 @@ export default function Scanner({ onNavigate, onBack }) {
       {(error || scanResult) && (
         <div className="p-4 border-t border-slate-800/50">
           {error && (
-            <div className="flex gap-2.5 text-xs text-red-300 items-start">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-400" />
-              <span>{error}</span>
-            </div>
+            <MessageBanner
+              type="error"
+              message={error}
+              className="flex gap-2.5 text-xs text-red-300 items-start"
+              iconClassName="w-4 h-4 shrink-0 mt-0.5 text-red-400"
+            />
           )}
           {scanResult && (
             <div className="flex items-center gap-2 text-xs text-emerald-300">

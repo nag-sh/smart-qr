@@ -1,65 +1,26 @@
-import { isNative } from '../utils/platform.js';
+import { Capacitor } from '@capacitor/core';
 import { SaveAs } from '../plugins/saveAs.js';
-
-function triggerWebDownload(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-function blobToBase64(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result;
-      const base64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
-      resolve(base64);
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(blob);
-  });
-}
+import { blobToDataURL } from './localImages.js';
 
 /**
  * Save a backup blob to the device using the native "Save as" picker on Android,
  * or the standard <a download> fallback on web.
  */
 export async function saveBackup(blob, filename, mimeType = 'application/zip') {
-  const base64 = await blobToBase64(blob);
-  if (!isNative()) {
-    triggerWebDownload(blob, filename);
-    return;
-  }
-
-  try {
-    await SaveAs.saveFile({ filename, data: base64, mimeType });
-  } catch (err) {
-    console.error('Native save-as failed, falling back to web download:', err);
-    triggerWebDownload(blob, filename);
-  }
+  const base64 = (await blobToDataURL(blob)).split(',')[1];
+  await SaveAs.saveFile({ filename, data: base64, mimeType });
 }
 
 /**
  * Share a backup blob via the native Android share sheet.
  */
 export async function shareBackup(blob, filename, mimeType = 'application/zip') {
-  if (!isNative()) {
-    alert('Sharing files is not available in the browser.');
-    return;
+  if (!Capacitor.isNativePlatform()) {
+    throw new Error('Sharing files is not available in the browser.');
   }
 
-  const base64 = await blobToBase64(blob);
-  try {
-    await SaveAs.shareFile({ filename, data: base64, mimeType });
-  } catch (err) {
-    console.error('Native share failed:', err);
-    alert('Failed to share backup: ' + (err?.message || 'Unknown error'));
-  }
+  const base64 = (await blobToDataURL(blob)).split(',')[1];
+  await SaveAs.shareFile({ filename, data: base64, mimeType });
 }
 
 /**
