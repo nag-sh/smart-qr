@@ -232,10 +232,10 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
             onClick={() => setShowOverflowMenu(prev => !prev)}
             aria-label="More actions"
             aria-expanded={showOverflowMenu}
-            className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer border border-slate-700/50"
+            className="p-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer border border-slate-700/50"
             title="More actions"
           >
-            <MoreHorizontal className="w-4 h-4" />
+            <MoreHorizontal className="w-6 h-6" />
           </button>
           {showOverflowMenu && (
             <div className="absolute right-0 mt-2 w-44 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl z-50 py-1">
@@ -244,7 +244,7 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
                   setShowOverflowMenu(false);
                   onNavigate('edit-item', { itemId });
                 }}
-                className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-2 transition-colors cursor-pointer"
+                className="w-full px-4 py-3 text-left text-sm text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-2 transition-colors cursor-pointer"
               >
                 <Edit className="w-4 h-4 text-purple-400" /> Edit Item
               </button>
@@ -254,7 +254,7 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
                   handleAiAnalysis();
                 }}
                 disabled={aiAnalysisDisabled}
-                className={`w-full px-4 py-2.5 text-left text-xs flex items-center gap-2 transition-colors cursor-pointer ${
+                className={`w-full px-4 py-3 text-left text-sm flex items-center gap-2 transition-colors cursor-pointer ${
                   aiAnalysisDisabled
                     ? 'text-slate-500 cursor-not-allowed'
                     : 'text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -268,7 +268,7 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
                   handleDelete();
                 }}
                 disabled={deleting}
-                className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-800 hover:text-red-400 flex items-center gap-2 transition-colors cursor-pointer"
+                className="w-full px-4 py-3 text-left text-sm text-slate-300 hover:bg-slate-800 hover:text-red-400 flex items-center gap-2 transition-colors cursor-pointer"
               >
                 {deleting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4 text-red-400" />} Delete Item
               </button>

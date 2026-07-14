@@ -54,9 +54,17 @@ export function useCameraDevices() {
   const switchCamera = useCallback(() => {
     if (devices.length < 2) return currentDeviceId;
 
-    const idx = devices.findIndex((d) => d.deviceId === currentDeviceId);
-    const nextIdx = (idx + 1) % devices.length;
-    const nextDeviceId = devices[nextIdx].deviceId;
+    let nextDeviceId;
+    if (!currentDeviceId) {
+      // Camera was started via facingMode (no specific deviceId).
+      // Pick a non-default camera (last in list) instead of cycling from 0,
+      // which would just select the environment camera again.
+      nextDeviceId = devices[devices.length - 1].deviceId;
+    } else {
+      const idx = devices.findIndex((d) => d.deviceId === currentDeviceId);
+      const nextIdx = (idx + 1) % devices.length;
+      nextDeviceId = devices[nextIdx].deviceId;
+    }
     setCurrentDeviceId(nextDeviceId);
     return nextDeviceId;
   }, [devices, currentDeviceId]);
