@@ -5,7 +5,7 @@ import { createBin, getBins } from '../services/storage';
 import { useCameraDevices } from '../hooks/useCameraDevices';
 
 export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refreshNonce }) {
-  const { devices, currentDeviceId, switchCamera, hasMultipleCameras } = useCameraDevices();
+  const { hasMultipleCameras } = useCameraDevices();
   // Mode switcher when qrId is undefined: 'choice' | 'form'
   const [flowMode, setFlowMode] = useState(qrId ? 'form' : 'choice');
   const [generateMode, setGenerateMode] = useState(false); // True if system generating QR
@@ -49,6 +49,7 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
   
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
+  const usingFrontCamera = useRef(false);
 
   // Stop camera tracks on unmount
   useEffect(() => {
@@ -66,7 +67,7 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
     }
   }, [useInlineCamera, cameraStream]);
 
-  const startInlineCamera = async (deviceId = currentDeviceId) => {
+  const startInlineCamera = async (facingMode = 'environment') => {
     setError('');
     setCameraReady(false);
     setCapturedFrame(null);
@@ -89,26 +90,16 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
 
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        video: deviceId
-          ? { deviceId: { exact: deviceId }, ...baseConstraints }
-          : { facingMode: 'environment', ...baseConstraints }
+        video: { facingMode, ...baseConstraints }
       });
     } catch (err) {
-      if (deviceId) {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'environment', ...baseConstraints }
-          });
-        } catch (fallbackErr) {
-          console.error('Failed to get camera stream:', fallbackErr);
-          setCameraStream(null);
-          setUseInlineCamera(false);
-          setError('Camera access blocked. Opening file selector...');
-          triggerFilePicker();
-          return;
-        }
-      } else {
-        console.error('Failed to get camera stream:', err);
+      const fallbackFacingMode = facingMode === 'environment' ? 'user' : 'environment';
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: fallbackFacingMode, ...baseConstraints }
+        });
+      } catch (fallbackErr) {
+        console.error('Failed to get camera stream:', fallbackErr);
         setCameraStream(null);
         setUseInlineCamera(false);
         setError('Camera access blocked. Opening file selector...');
@@ -132,8 +123,9 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
 
   const handleSwitchCamera = () => {
     setCameraReady(false);
-    const nextDeviceId = switchCamera();
-    startInlineCamera(nextDeviceId);
+    usingFrontCamera.current = !usingFrontCamera.current;
+    const facingMode = usingFrontCamera.current ? 'user' : 'environment';
+    startInlineCamera(facingMode);
   };
 
   const handleVideoReady = () => {

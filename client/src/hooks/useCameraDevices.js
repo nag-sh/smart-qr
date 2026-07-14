@@ -1,75 +1,41 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 
 /**
- * Enumerates available video input devices and exposes a helper to cycle
- * through them. Consumers still own starting/stopping the MediaStream so
- * the return shape stays serializable and testable.
+ * Enumerates available video input devices to determine whether the device
+ * has more than one camera. Consumers own starting/stopping the MediaStream
+ * and should use `facingMode` toggling to switch cameras.
  *
- * @returns {{
- *   devices: MediaDeviceInfo[],
- *   currentDeviceId: string,
- *   switchCamera: () => string | void,
- *   hasMultipleCameras: boolean
- * }}
+ * @returns {{ hasMultipleCameras: boolean }}
  */
 export function useCameraDevices() {
-  const [devices, setDevices] = useState([]);
-  const [currentDeviceId, setCurrentDeviceId] = useState('');
+  const [hasMultipleCameras, setHasMultiple] = useState(false);
 
   useEffect(() => {
     let mounted = true;
 
-    const enumerate = async () => {
+    const check = async () => {
       try {
         const allDevices = await navigator.mediaDevices.enumerateDevices();
         if (!mounted) return;
 
-        const videoDevices = allDevices.filter(
+        const count = allDevices.filter(
           (device) => device.kind === 'videoinput' && device.deviceId
-        );
-
-        setDevices(videoDevices);
-        setCurrentDeviceId((prev) => {
-          if (prev && videoDevices.some((d) => d.deviceId === prev)) {
-            return prev;
-          }
-          return videoDevices[0]?.deviceId || '';
-        });
+        ).length;
+        setHasMultiple(count >= 2);
       } catch (err) {
-        console.error('enumerateDevices failed:', err);
+        // Ignore enumeration errors; the camera may still work via facingMode.
       }
     };
 
-    if (!navigator.mediaDevices) return;
-
-    enumerate();
-    navigator.mediaDevices.addEventListener('devicechange', enumerate);
-
-    return () => {
-      mounted = false;
-      navigator.mediaDevices.removeEventListener('devicechange', enumerate);
-    };
+    if (navigator.mediaDevices) {
+      check();
+      navigator.mediaDevices.addEventListener('devicechange', check);
+      return () => {
+        mounted = false;
+        navigator.mediaDevices.removeEventListener('devicechange', check);
+      };
+    }
   }, []);
 
-  const switchCamera = useCallback(() => {
-    if (devices.length < 2) return currentDeviceId;
-
-    let nextDeviceId;
-    if (!currentDeviceId) {
-      // Camera was started via facingMode (no specific deviceId).
-      // Pick a non-default camera (last in list) instead of cycling from 0,
-      // which would just select the environment camera again.
-      nextDeviceId = devices[devices.length - 1].deviceId;
-    } else {
-      const idx = devices.findIndex((d) => d.deviceId === currentDeviceId);
-      const nextIdx = (idx + 1) % devices.length;
-      nextDeviceId = devices[nextIdx].deviceId;
-    }
-    setCurrentDeviceId(nextDeviceId);
-    return nextDeviceId;
-  }, [devices, currentDeviceId]);
-
-  const hasMultipleCameras = devices.length >= 2;
-
-  return { devices, currentDeviceId, switchCamera, hasMultipleCameras };
+  return { hasMultipleCameras };
 }

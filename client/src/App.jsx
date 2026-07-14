@@ -46,6 +46,16 @@ function ModalShell({ onClose, hideClose = false, children }) {
 
 // ─── Inner App Content (must be inside BrowserRouter) ───────────────────────
 function AppContent() {
+  // ─── Prevent body scroll when modal is open ──────────────────────────
+  useEffect(() => {
+    if (stack.length > 0) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [stack.length]);
+
   // Print state
   const [printData, setPrintData] = useState(null); // { qr_id, name }
   const [showPrintHelper, setShowPrintHelper] = useState(false);
