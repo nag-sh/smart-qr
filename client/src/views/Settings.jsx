@@ -492,7 +492,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto py-6 px-4 space-y-6">
+    <div className="w-full max-w-4xl mx-auto py-6 px-4 space-y-6">
       {!isNativePlatform && (
       <section className="space-y-6">
         

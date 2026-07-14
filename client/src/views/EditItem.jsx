@@ -264,7 +264,7 @@ export default function EditItem({ itemId, onBack, refreshNonce }) {
         </button>
         <button
           onClick={handleSave}
-          disabled={saving || !editName.trim()}
+          disabled={saving}
           className="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-colors cursor-pointer flex items-center gap-2"
         >
           {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}

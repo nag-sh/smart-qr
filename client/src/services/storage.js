@@ -289,9 +289,9 @@ export async function createBin(qrId, name, location, imageFile) {
         owner: 'dion',
         entity_type: 'bin',
         entity_id: id,
-        entity_name: name.trim(),
+        entity_name: (name || '').trim(),
         qr_id: qrId,
-        location: location.trim(),
+        location: (location || '').trim(),
         created_at: new Date().toISOString()
       });
       image_url = await storeImage(processed);
@@ -300,15 +300,15 @@ export async function createBin(qrId, name, location, imageFile) {
     const newBin = {
       id,
       qr_id: qrId,
-      name: name.trim(),
-      location: location.trim(),
+      name: (name || '').trim(),
+      location: (location || '').trim(),
       image_url,
       created_at: new Date().toISOString()
     };
 
     bins.push(newBin);
     await setLocalTable('local_bins', bins);
-    await saveLocalAuditEntry('CREATE_BIN', `Created bin: ${name.trim()}`);
+    await saveLocalAuditEntry('CREATE_BIN', `Created bin: ${(name || '').trim()}`);
     return newBin;
   }
 
@@ -353,7 +353,7 @@ export async function createItem(binId, name, description, searchTagsArray, visi
         owner: 'dion',
         entity_type: 'item',
         entity_id: id,
-        entity_name: name.trim(),
+        entity_name: (name || '').trim(),
         bin_id: binId,
         bin_name: parentBin.name,
         location: parentBin.location,
@@ -366,17 +366,17 @@ export async function createItem(binId, name, description, searchTagsArray, visi
     const newItem = {
       id,
       bin_id: binId,
-      name: name.trim(),
-      description: description.trim(),
+      name: (name || '').trim(),
+      description: (description || '').trim(),
       image_url,
       search_tags: searchTagsArray || [],
-      visible_text: visibleText.trim(),
+      visible_text: (visibleText || '').trim(),
       created_at: new Date().toISOString()
     };
 
     items.push(newItem);
     await setLocalTable('local_items', items);
-    await saveLocalAuditEntry('CREATE_ITEM', `Created item: ${name.trim()} in bin: ${parentBin.name}`);
+    await saveLocalAuditEntry('CREATE_ITEM', `Created item: ${(name || '').trim()} in bin: ${parentBin.name || 'Untitled Bin'}`);
     return newItem;
   }
 

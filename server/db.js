@@ -35,8 +35,8 @@ export async function initDb() {
     CREATE TABLE IF NOT EXISTS bins (
       id TEXT PRIMARY KEY,
       qr_id TEXT UNIQUE NOT NULL,
-      name TEXT NOT NULL,
-      location TEXT NOT NULL,
+      name TEXT,
+      location TEXT,
       image_url TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -44,7 +44,7 @@ export async function initDb() {
     CREATE TABLE IF NOT EXISTS items (
       id TEXT PRIMARY KEY,
       bin_id TEXT NOT NULL,
-      name TEXT NOT NULL,
+      name TEXT,
       description TEXT,
       image_url TEXT,
       search_tags TEXT,

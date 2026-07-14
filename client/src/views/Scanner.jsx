@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera } from '@capacitor/camera';
-import { Camera as CameraIcon, CameraOff, QrCode, AlertCircle, ArrowRight, Keyboard, RefreshCw, ArrowLeft } from 'lucide-react';
+import { Camera as CameraIcon, CameraOff, QrCode, AlertCircle, ArrowRight, Keyboard, RefreshCw, ArrowLeft, SwitchCamera } from 'lucide-react';
 import { getBin } from '../services/storage';
+import { useCameraDevices } from '../hooks/useCameraDevices';
 
 const decodeInterval = 200; // 5 fps decode; tunable
 
 export default function Scanner({ onNavigate, onBack }) {
+  const { devices, currentDeviceId, switchCamera, hasMultipleCameras } = useCameraDevices();
   const [scanResult, setScanResult] = useState('');
   const [error, setError] = useState('');
   const [isScanning, setIsScanning] = useState(false);
@@ -66,32 +68,61 @@ export default function Scanner({ onNavigate, onBack }) {
     scanningRef.current = false;
   }
 
-  const startScanner = async () => {
+  const startScanner = async (deviceId = currentDeviceId) => {
     if (startingRef.current || !videoRef.current || !workerRef.current) return;
     startingRef.current = true;
     cleanupScanner();
     setError('');
     setScanResult('');
+
+    const baseVideo = {
+      width: { ideal: 640, max: 640 },
+      height: { ideal: 480, max: 480 },
+      frameRate: { ideal: 30, min: 30 },
+    };
+
+    let stream = null;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'environment',
-          width: { ideal: 640, max: 640 },
-          height: { ideal: 480, max: 480 },
-          frameRate: { ideal: 30, min: 30 },
-        },
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: deviceId
+          ? { deviceId: { exact: deviceId }, ...baseVideo }
+          : { facingMode: 'environment', ...baseVideo },
         audio: false,
       });
+    } catch (err) {
+      if (deviceId) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment', ...baseVideo },
+            audio: false,
+          });
+        } catch (fallbackErr) {
+          console.error('Failed to start camera:', fallbackErr);
+          setIsScanning(false);
+          setError('Could not access camera. Please ensure camera permission is granted.');
+          startingRef.current = false;
+          return;
+        }
+      } else {
+        console.error('Failed to start camera:', err);
+        setIsScanning(false);
+        setError('Could not access camera. Please ensure camera permission is granted.');
+        startingRef.current = false;
+        return;
+      }
+    }
+
+    try {
       streamRef.current = stream;
       videoRef.current.srcObject = stream;
       await videoRef.current.play();
       setIsScanning(true);
       scanningRef.current = true;
       scheduleDecode();
-    } catch (err) {
-      console.error('Failed to start camera:', err);
+    } catch (playErr) {
+      console.error('Failed to play video:', playErr);
       setIsScanning(false);
-      setError('Could not access camera. Please ensure camera permission is granted.');
+      setError('Could not start camera preview.');
     } finally {
       startingRef.current = false;
     }
@@ -100,6 +131,11 @@ export default function Scanner({ onNavigate, onBack }) {
   const stopScanner = () => {
     cleanupScanner();
     setIsScanning(false);
+  };
+
+  const handleSwitchCamera = () => {
+    const nextDeviceId = switchCamera();
+    startScanner(nextDeviceId);
   };
 
   const scheduleDecode = () => {
@@ -235,7 +271,7 @@ export default function Scanner({ onNavigate, onBack }) {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto py-6 px-4 space-y-6 relative overflow-hidden">
+    <div className="w-full max-w-4xl mx-auto py-6 px-4 space-y-6 relative overflow-hidden">
       <div className="absolute -top-24 -left-24 w-48 h-48 bg-purple-600/10 rounded-full blur-3xl pointer-events-none"></div>
 
       <div className="p-5 flex items-center gap-3 border-b border-slate-800/50">
@@ -304,6 +340,17 @@ export default function Scanner({ onNavigate, onBack }) {
               ref={canvasRef}
               className="absolute opacity-0 pointer-events-none size-0"
             />
+
+            {isScanning && hasMultipleCameras && (
+              <button
+                type="button"
+                onClick={handleSwitchCamera}
+                aria-label="Switch camera"
+                className="absolute bottom-4 right-4 z-30 p-2.5 rounded-full bg-slate-900/80 border border-slate-700/60 text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <SwitchCamera className="w-5 h-5" />
+              </button>
+            )}
 
             {isScanning && (
               <div className="absolute inset-0 pointer-events-none">

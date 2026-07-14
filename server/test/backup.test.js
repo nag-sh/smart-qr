@@ -37,6 +37,41 @@ async function extractZipToDir(zipPath, extractDir) {
   });
 }
 
+test('bins accept empty name and location on create and update', async () => {
+  const db = await initDb();
+  await db.run('DELETE FROM items');
+  await db.run('DELETE FROM bins');
+
+  try {
+    const binId = uuidv4();
+    const qrId = `qr-${binId.slice(0, 8)}`;
+    const createdAt = new Date().toISOString();
+
+    await db.run(
+      `INSERT INTO bins (id, qr_id, name, location, image_url, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+      binId, qrId, '', '', null, createdAt
+    );
+
+    const createdBin = await db.get('SELECT * FROM bins WHERE id = ?', binId);
+    assert.ok(createdBin, 'created bin should exist');
+    assert.equal(createdBin.name, '', 'created bin name should be empty');
+    assert.equal(createdBin.location, '', 'created bin location should be empty');
+
+    await db.run(
+      `UPDATE bins SET name = ?, location = ? WHERE id = ?`,
+      '', '', binId
+    );
+
+    const updatedBin = await db.get('SELECT * FROM bins WHERE id = ?', binId);
+    assert.equal(updatedBin.name, '', 'updated bin name should stay empty');
+    assert.equal(updatedBin.location, '', 'updated bin location should stay empty');
+  } finally {
+    await db.run('DELETE FROM items');
+    await db.run('DELETE FROM bins');
+    await closeDb();
+  }
+});
+
 test('backup zip round-trip preserves images as files under images/', async () => {
   const db = await initDb();
   await db.run('DELETE FROM items');

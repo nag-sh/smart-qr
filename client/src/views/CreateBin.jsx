@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Box, MapPin, Camera, AlertCircle, RefreshCw, Save, ArrowLeft, QrCode, Sparkles, CheckCircle2, ArrowRight, Printer } from 'lucide-react';
+import { Box, MapPin, Camera, AlertCircle, RefreshCw, Save, ArrowLeft, QrCode, Sparkles, CheckCircle2, ArrowRight, Printer, SwitchCamera } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { createBin, getBins } from '../services/storage';
+import { useCameraDevices } from '../hooks/useCameraDevices';
 
 export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refreshNonce }) {
+  const { devices, currentDeviceId, switchCamera, hasMultipleCameras } = useCameraDevices();
   // Mode switcher when qrId is undefined: 'choice' | 'form'
   const [flowMode, setFlowMode] = useState(qrId ? 'form' : 'choice');
   const [generateMode, setGenerateMode] = useState(false); // True if system generating QR
@@ -37,6 +39,7 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
   // Inline WebRTC camera states
   const [useInlineCamera, setUseInlineCamera] = useState(false);
   const [cameraStream, setCameraStream] = useState(null);
+  const [cameraReady, setCameraReady] = useState(false);
 
   // Success state for generated digital QR
   const [successBin, setSuccessBin] = useState(null);
@@ -61,27 +64,57 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
     }
   }, [useInlineCamera, cameraStream]);
 
-  const startInlineCamera = async (e) => {
-    if (e) e.stopPropagation();
+  const startInlineCamera = async (deviceId = currentDeviceId) => {
     setError('');
-    
+    setCameraReady(false);
+
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+    }
+
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setError('Browser does not support WebRTC cameras. Opening standard file selector.');
+      setCameraStream(null);
+      setUseInlineCamera(false);
       triggerFilePicker();
       return;
     }
 
+    const baseConstraints = { width: { ideal: 1280 }, height: { ideal: 720 } };
+    let stream = null;
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: deviceId
+          ? { deviceId: { exact: deviceId }, ...baseConstraints }
+          : { facingMode: 'environment', ...baseConstraints }
       });
-      setCameraStream(stream);
-      setUseInlineCamera(true);
     } catch (err) {
-      console.error('Failed to get camera stream:', err);
-      setError('Camera access blocked. Opening file selector...');
-      triggerFilePicker();
+      if (deviceId) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment', ...baseConstraints }
+          });
+        } catch (fallbackErr) {
+          console.error('Failed to get camera stream:', fallbackErr);
+          setCameraStream(null);
+          setUseInlineCamera(false);
+          setError('Camera access blocked. Opening file selector...');
+          triggerFilePicker();
+          return;
+        }
+      } else {
+        console.error('Failed to get camera stream:', err);
+        setCameraStream(null);
+        setUseInlineCamera(false);
+        setError('Camera access blocked. Opening file selector...');
+        triggerFilePicker();
+        return;
+      }
     }
+
+    setCameraStream(stream);
+    setUseInlineCamera(true);
   };
 
   const stopInlineCamera = () => {
@@ -90,6 +123,20 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
       setCameraStream(null);
     }
     setUseInlineCamera(false);
+    setCameraReady(false);
+  };
+
+  const handleSwitchCamera = () => {
+    setCameraReady(false);
+    const nextDeviceId = switchCamera();
+    startInlineCamera(nextDeviceId);
+  };
+
+  const handleVideoReady = () => {
+    const video = videoRef.current;
+    if (video && video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+      setCameraReady(true);
+    }
   };
 
   useEffect(() => {
@@ -101,10 +148,13 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
 
   const capturePhoto = (e) => {
     if (e) e.stopPropagation();
-    if (!videoRef.current) return;
+    const video = videoRef.current;
+    if (!video || !cameraReady || video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
+      setError('Camera is not ready yet. Please wait a moment.');
+      return;
+    }
 
     try {
-      const video = videoRef.current;
       const canvas = document.createElement('canvas');
       canvas.width = video.videoWidth || 640;
       canvas.height = video.videoHeight || 480;
@@ -170,10 +220,6 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name.trim() || !location.trim()) {
-      setError('Please fill in both name and location.');
-      return;
-    }
 
     setLoading(true);
     setError('');
@@ -211,7 +257,7 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
   // 1. CHOOSE LINK MODE SCREEN
   if (flowMode === 'choice') {
     return (
-      <div className="w-full max-w-md mx-auto py-6 px-4 space-y-6 relative overflow-hidden">
+      <div className="w-full max-w-4xl mx-auto py-6 px-4 space-y-6 relative overflow-hidden">
         <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-600/10 rounded-full blur-3xl"></div>
 
         <div className="flex items-center gap-3">
@@ -282,7 +328,7 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
   // 2. DIGITAL QR SUCCESS RECEIPT SCREEN
   if (successBin && generatedQrText) {
     return (
-      <div className="w-full max-w-md mx-auto py-6 px-4 space-y-6 relative overflow-hidden">
+      <div className="w-full max-w-4xl mx-auto py-6 px-4 space-y-6 relative overflow-hidden">
         {/* Confetti-like glow */}
         <div className="absolute -top-24 -right-24 w-48 h-48 bg-emerald-600/10 rounded-full blur-3xl"></div>
 
@@ -320,11 +366,11 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
           <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800/80 space-y-2 text-xs">
             <div className="flex justify-between border-b border-slate-800/60 pb-1.5">
               <span className="text-slate-400 font-semibold">Name</span>
-              <span className="text-slate-200 font-bold">{successBin.name}</span>
+              <span className="text-slate-200 font-bold">{successBin.name || 'Untitled Bin'}</span>
             </div>
             <div className="flex justify-between border-b border-slate-800/60 pb-1.5">
               <span className="text-slate-400 font-semibold">Location</span>
-              <span className="text-slate-200">{successBin.location}</span>
+              <span className="text-slate-200">{successBin.location || 'Unknown Location'}</span>
             </div>
             <div className="space-y-1">
               <span className="text-slate-400 font-semibold block">Unique Scanned Text</span>
@@ -356,7 +402,7 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
 
   // 3. CREATE BIN FORM
   return (
-    <div className="w-full max-w-md mx-auto py-6 px-4 relative overflow-hidden">
+    <div className="w-full max-w-4xl mx-auto py-6 px-4 relative overflow-hidden">
       {/* Glow decoration */}
       <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-600/10 rounded-full blur-3xl pointer-events-none"></div>
 
@@ -411,12 +457,32 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
                   autoPlay
                   playsInline
                   className="w-full h-full object-cover"
+                  onLoadedData={handleVideoReady}
+                  onLoadedMetadata={handleVideoReady}
                 />
+                {hasMultipleCameras && (
+                  <button
+                    type="button"
+                    onClick={handleSwitchCamera}
+                    aria-label="Switch camera"
+                    className="absolute bottom-4 right-4 z-30 p-2 rounded-full bg-slate-900/80 border border-slate-700/60 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                  >
+                    <SwitchCamera className="w-4 h-4" />
+                  </button>
+                )}
+                {!cameraReady && (
+                  <div className="absolute bottom-16 left-0 right-0 flex justify-center z-20 pointer-events-none">
+                    <span className="px-3 py-1.5 rounded-full bg-slate-900/80 text-slate-300 text-[10px] font-medium">
+                      Camera starting...
+                    </span>
+                  </div>
+                )}
                 <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 px-2 z-20">
                   <button
                     type="button"
                     onClick={capturePhoto}
-                    className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg active:scale-95 transition-transform cursor-pointer"
+                    disabled={!cameraReady || compressing || loading}
+                    className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg active:scale-95 transition-transform cursor-pointer"
                   >
                     <Camera className="w-4 h-4" /> Snap Photo
                   </button>
@@ -435,7 +501,7 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
                 <div className="absolute inset-0 bg-slate-950/65 opacity-0 hover:opacity-100 flex items-center justify-center transition-opacity gap-3">
                   <button
                     type="button"
-                    onClick={startInlineCamera}
+                    onClick={(e) => { e.stopPropagation(); startInlineCamera(); }}
                     className="px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-lg cursor-pointer"
                   >
                     <Camera className="w-3.5 h-3.5" /> Retake (Camera)
@@ -459,7 +525,7 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
                 <div className="flex justify-center gap-3">
                   <button
                     type="button"
-                    onClick={startInlineCamera}
+                    onClick={(e) => { e.stopPropagation(); startInlineCamera(); }}
                     className="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-lg active:scale-95 transition-transform cursor-pointer"
                   >
                     <Camera className="w-4 h-4" /> Start Camera
@@ -585,7 +651,7 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
 
         <button
           type="submit"
-          disabled={loading || compressing || !name.trim() || !location.trim()}
+          disabled={loading || compressing}
           className="w-full py-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-98 transition-transform cursor-pointer"
         >
           {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}

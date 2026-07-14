@@ -72,7 +72,7 @@ export default function PrintRandomized({ onBack, onPrintRandom }) {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto py-6 px-4 space-y-6 relative overflow-hidden">
+    <div className="w-full max-w-4xl mx-auto py-6 px-4 space-y-6 relative overflow-hidden">
       <div className="absolute -top-24 -right-24 w-48 h-48 bg-cyan-600/10 rounded-full blur-3xl pointer-events-none"></div>
 
       <div className="flex items-center gap-3">

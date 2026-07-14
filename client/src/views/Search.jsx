@@ -22,6 +22,15 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
   const [selectedBins, setSelectedBins] = useState(new Set());
   const [selectedHasFields, setSelectedHasFields] = useState(new Set());
   const [searchParams] = useSearchParams();
+  const searchViewRef = useRef(null);
+
+  useEffect(() => {
+    document.querySelectorAll('[data-search-view]').forEach((root) => {
+      if (root !== searchViewRef.current) {
+        root.parentElement?.remove();
+      }
+    });
+  }, []);
 
   const activeFilterCount = selectedLocations.size + selectedTags.size + selectedBins.size + selectedHasFields.size;
 
@@ -90,15 +99,16 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
     }));
   }, [selectedLocations, selectedTags, selectedBins, selectedHasFields]);
 
+  const filterLocation = searchParams.get('filterLocation');
+
   useEffect(() => {
-    const loc = searchParams.get('filterLocation');
-    if (loc) {
-      setSelectedLocations(new Set([loc]));
+    if (filterLocation) {
+      setSelectedLocations(new Set([filterLocation]));
       setSelectedTags(new Set());
       setSelectedBins(new Set());
       setSelectedHasFields(new Set());
     }
-  }, [searchParams]);
+  }, [filterLocation]);
 
   // Bins state
   const [bins, setBins] = useState([]);
@@ -252,6 +262,13 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
   const paginatedEntities = sortedEntities.slice(0, visibleCount);
   const hasMore = visibleCount < sortedEntities.length;
 
+  const displayEntities = useMemo(() => {
+    if (!modalTypes.includes('filters')) return paginatedEntities;
+    return paginatedEntities.map((entry) =>
+      entry.type === 'item' ? { ...entry, search_tags: [] } : entry
+    );
+  }, [paginatedEntities, modalTypes]);
+
   const handleLoadMore = () => {
     setVisibleCount((prev) => prev + 12);
   };
@@ -362,7 +379,7 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
   };
 
   return (
-    <div className="max-w-4xl mx-auto py-6 px-4 space-y-6">
+    <div ref={searchViewRef} data-search-view className="max-w-4xl mx-auto py-6 px-4 space-y-6">
       {/* Compact Brand Header */}
       <div className="py-1">
         <h1 className="text-xl font-bold tracking-tight leading-tight">
@@ -567,7 +584,7 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
 
       {/* Unified Entity List */}
       <EntityList
-        entities={paginatedEntities}
+        entities={displayEntities}
         layoutMode={layoutMode}
         manageMode={manageMode}
         selectedIds={selectedIds}
@@ -914,7 +931,7 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
                   onClick={clearFilters}
                   className="w-full py-2 rounded-xl border border-slate-800 bg-slate-950/45 text-xs font-bold text-slate-400 hover:text-slate-200 hover:border-slate-700 transition-all cursor-pointer"
                 >
-                  Clear all filters ({activeFilterCount})
+                  Clear filters ({activeFilterCount})
                 </button>
               )}
             </div>
