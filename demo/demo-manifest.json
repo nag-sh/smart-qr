@@ -1,0 +1,130 @@
+{
+  "bin-garage": {
+    "file": "bin-garage.jpg",
+    "query": "red metal tool box",
+    "license": "CC BY-SA 4.0",
+    "artist": "Ralf Gruner",
+    "source": "https://commons.wikimedia.org/wiki/File:Ironpower_Red_V-Power_with_box.jpg",
+    "bytes": 106140
+  },
+  "bin-kitchen": {
+    "file": "bin-kitchen.jpg",
+    "query": "wooden storage crate",
+    "license": "Public domain",
+    "artist": "Frank H. Nowell",
+    "source": "https://commons.wikimedia.org/wiki/File:Apples_in_wooden_crates_in_cold_storage,_Oregon_State_Building,_Alaska-Yukon-Pacific-Exposition,_Seattle,_Washington,_1909_(AYP_1158).jpeg",
+    "bytes": 51367
+  },
+  "bin-office": {
+    "file": "bin-office.jpg",
+    "query": "cardboard file box",
+    "license": "CC BY-SA 4.0",
+    "artist": "Revital Salomon",
+    "source": "https://commons.wikimedia.org/wiki/File:Kitten_in_a_cardboard_box.jpg",
+    "bytes": 155131
+  },
+  "item-drill": {
+    "file": "item-drill.jpg",
+    "query": "cordless drill",
+    "license": "CC BY-SA 3.0",
+    "artist": "Rob Kay (en:User:Excalibur)",
+    "source": "https://commons.wikimedia.org/wiki/File:A_boy_with_Down_syndrome_using_cordless_drill_to_assemble_a_book_case.jpg",
+    "bytes": 23552
+  },
+  "item-wrench": {
+    "file": "item-wrench.jpg",
+    "query": "adjustable wrench",
+    "license": "Public domain",
+    "artist": "Batholith",
+    "source": "https://commons.wikimedia.org/wiki/File:Adjustable_spanner_20101109.jpg",
+    "bytes": 85843
+  },
+  "item-worklight": {
+    "file": "item-worklight.jpg",
+    "query": "LED work light",
+    "license": "CC BY 3.0",
+    "artist": "Noblevmy",
+    "source": "https://commons.wikimedia.org/wiki/File:LED_KOC.JPG",
+    "bytes": 127310
+  },
+  "item-mug": {
+    "file": "item-mug.jpg",
+    "query": "ceramic coffee mug",
+    "license": "CC BY-SA 3.0",
+    "artist": "Stephen B Calvert Clariosophic",
+    "source": "https://commons.wikimedia.org/wiki/File:Moustache_coffee_mug_001.JPG",
+    "bytes": 127210
+  },
+  "item-skillet": {
+    "file": "item-skillet.jpg",
+    "query": "cast iron skillet",
+    "license": "CC BY 3.0",
+    "artist": "Douglas P Perkins (Douglaspperkins (talk))",
+    "source": "https://commons.wikimedia.org/wiki/File:Cornbread_in_cast_iron_pan.jpg",
+    "bytes": 169217
+  },
+  "item-spice": {
+    "file": "item-spice.jpg",
+    "query": "spice jar",
+    "license": "CC BY-SA 3.0",
+    "artist": "ParentingPatch",
+    "source": "https://commons.wikimedia.org/wiki/File:Spices_on_Spice_Rack.JPG",
+    "bytes": 136319
+  },
+  "item-keyboard": {
+    "file": "item-keyboard.jpg",
+    "query": "mechanical keyboard",
+    "license": "CC BY-SA 4.0",
+    "artist": "Thanasis Termitzoglou",
+    "source": "https://commons.wikimedia.org/wiki/File:Mechanical_keyboard_example.jpg",
+    "bytes": 26133
+  },
+  "item-notebook": {
+    "file": "item-notebook.jpg",
+    "query": "notebook blank",
+    "license": "CC BY 2.0",
+    "artist": "Pink Sherbet Photography from USA",
+    "source": "https://commons.wikimedia.org/wiki/File:Write_Your_Story_Blank_Lined_Notebook_Paper_Creative_Commons_(4812267249).jpg",
+    "bytes": 134619
+  },
+  "item-hub": {
+    "file": "item-hub.jpg",
+    "query": "USB-C hub",
+    "license": "CC BY-SA 4.0",
+    "artist": "Thefreeencyclopedia1",
+    "source": "https://commons.wikimedia.org/wiki/File:USB-C_Digital_AV_Multiport_Adapter.jpeg",
+    "bytes": 145822
+  },
+  "bin-closet": {
+    "file": "bin-closet.jpg",
+    "query": "wicker storage basket",
+    "license": "No restrictions",
+    "artist": "Internet Archive Book Images",
+    "source": "https://commons.wikimedia.org/wiki/File:How_to_make_baskets_(1911)_(14597080500).jpg",
+    "bytes": 144239
+  },
+  "item-shoes": {
+    "file": "item-shoes.jpg",
+    "query": "running shoes",
+    "license": "CC BY-SA 4.0",
+    "artist": "Matti Blume",
+    "source": "https://commons.wikimedia.org/wiki/File:OutDoor_2018,_Friedrichshafen_(1X7A0305).jpg",
+    "bytes": 104026
+  },
+  "item-backpack": {
+    "file": "item-backpack.jpg",
+    "query": "canvas backpack",
+    "license": "CC BY 4.0",
+    "artist": "Unknown authorUnknown author",
+    "source": "https://commons.wikimedia.org/wiki/File:Backpack,_military_(AM_649317-2).jpg",
+    "bytes": 206552
+  },
+  "item-lamp": {
+    "file": "item-lamp.jpg",
+    "query": "desk lamp",
+    "license": "CC BY-SA 4.0",
+    "artist": "Martin Falbisoner",
+    "source": "https://commons.wikimedia.org/wiki/File:Ceiling_light_fixture_in_Hofstatt_Mall,_Munich,_February_2017.jpg",
+    "bytes": 317362
+  }
+}
