@@ -153,10 +153,46 @@ export default function MultiAddModal({ binId, onNavigate, onBack, refreshNonce 
     }
   }, []);
 
+  const handleCapturePreview = useCallback(
+    (preview, captureId) => {
+      if (!apiKey || !captureId) return;
+
+      // Drop the thumbnail in the instant the shutter fires. The encoded file
+      // lands a beat later via handleCapture, which upgrades this same card.
+      const abortController = new AbortController();
+      const card = {
+        id: captureId,
+        file: null,
+        previewUrl: preview,
+        status: 'processing',
+        item: null,
+        error: null,
+        attempts: 0,
+        abortController,
+      };
+
+      setRoll((prev) => [...prev, card]);
+    },
+    [apiKey],
+  );
+
   const handleCapture = useCallback(
-    (file) => {
+    (file, captureId) => {
       if (!apiKey) return;
 
+      // Camera path: a preview card was created synchronously above. Upgrade it
+      // with the encoded file and start processing.
+      if (captureId) {
+        const existing = rollRef.current.find((c) => c.id === captureId);
+        if (!existing) return; // preview card was removed before the file landed
+        const abortController = existing.abortController;
+        setCard(captureId, (c) => ({ ...c, file, previewUrl: URL.createObjectURL(file) }));
+        queueRef.current.push(() => processCard(captureId, file, abortController));
+        runQueue();
+        return;
+      }
+
+      // File-picker path: no preview exists, create the card now.
       const id = crypto.randomUUID();
       const previewUrl = URL.createObjectURL(file);
       const abortController = new AbortController();
@@ -176,7 +212,7 @@ export default function MultiAddModal({ binId, onNavigate, onBack, refreshNonce 
       queueRef.current.push(() => processCard(id, file, abortController));
       runQueue();
     },
-    [apiKey, processCard, runQueue],
+    [apiKey, processCard, runQueue, setCard],
   );
 
   const handleFileChange = useCallback(
@@ -343,6 +379,7 @@ export default function MultiAddModal({ binId, onNavigate, onBack, refreshNonce 
           useInlineCamera
           showCapturedFrame={false}
           onCapture={handleCapture}
+          onCapturePreview={handleCapturePreview}
           onTriggerFilePicker={() => fileInputRef.current?.click()}
           captureFileName="multi-add-capture.jpg"
           snapButtonLabel="Snap"

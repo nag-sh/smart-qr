@@ -5,6 +5,7 @@ import { useCameraDevices } from '../hooks/useCameraDevices';
 export default function InlineCamera(props) {
   const {
     onCapture,
+    onCapturePreview,
     captureFileName = 'capture.jpg',
     useInlineCamera,
     onTriggerFilePicker,
@@ -135,12 +136,18 @@ export default function InlineCamera(props) {
       setShutterFlash(true);
       setTimeout(() => setShutterFlash(false), 300);
 
+      // Emit a synchronous preview so consumers (e.g. the multi-add roll) can
+      // show the thumbnail the instant the shutter fires, instead of waiting
+      // for the async canvas.toBlob encode below to finish.
+      const captureId = crypto.randomUUID();
+      if (onCapturePreview) onCapturePreview(dataUrl, captureId);
+
       canvas.toBlob(async (blob) => {
         if (!blob) {
           return;
         }
         const file = new File([blob], captureFileName, { type: 'image/jpeg' });
-        await onCapture(file);
+        await onCapture(file, captureId);
       }, 'image/jpeg', 0.85);
     } catch (err) {
       console.error('Capture frame error:', err);
