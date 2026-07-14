@@ -3,6 +3,7 @@ import { RefreshCw, Sparkles, Tag, Type, FileText, Plus, X, Save } from 'lucide-
 import BackButton from '../components/BackButton';
 import MessageBanner from '../components/MessageBanner';
 import PhotoUploadArea from '../components/PhotoUploadArea';
+import InlineCamera from '../components/InlineCamera';
 import { compressImage } from '../utils/imageCompression';
 import { analyzeItemImage } from '../services/gemini';
 import { createItem, updateItem, getBins, searchItems, batchManageItems } from '../services/storage';
@@ -303,6 +304,48 @@ export default function ItemForm({
             Back
           </button>
         </div>
+      </div>
+    );
+  }
+
+  // Create mode with no photo yet: show a large, minimal camera feed (like
+  // Multi-Add) and advance to the editable fields once a picture is taken. The
+  // AI-analysis loading overlay (below) then covers the fields while the key is set.
+  if (isCreate && !imageFile && !imagePreview) {
+    return (
+      <div className="w-full h-full flex flex-col bg-slate-950 text-slate-100">
+        <div className="p-4 flex items-center gap-3 border-b border-slate-800/50 shrink-0">
+          <BackButton onClick={() => onBack()} className="-ml-1" />
+          <div className="flex items-center gap-2.5">
+            <div className="p-2.5 bg-purple-500/10 rounded-xl text-purple-400">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <h1 className="font-bold text-sm text-slate-200">Add Item</h1>
+              <p className="text-[10px] text-slate-400">Snap a photo to auto-catalog</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative h-[45vh] min-h-[280px] max-h-[480px] bg-slate-900 overflow-hidden shrink-0 m-4 rounded-2xl border border-slate-800/60">
+          <InlineCamera
+            useInlineCamera={useInlineCamera}
+            showCapturedFrame={false}
+            onCapture={handleCapture}
+            onTriggerFilePicker={() => fileInputRef.current?.click()}
+            captureFileName="item-capture.jpg"
+            snapButtonLabel="Snap"
+            uploadButtonLabel="Upload File"
+          />
+        </div>
+
+        <input
+          type="file"
+          accept="image/*"
+          ref={fileInputRef}
+          onChange={handleImageChange}
+          className="hidden"
+        />
       </div>
     );
   }
