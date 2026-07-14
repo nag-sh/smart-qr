@@ -24,7 +24,9 @@ if (typeof version !== 'string' || !/^\d+\.\d+\.\d+/.test(version)) {
   process.exit(1);
 }
 
-const [major, minor, patch] = version.split('.').map(Number);
+// Strip any pre-release suffix (e.g. "-alpha") before deriving versionCode.
+const baseVersion = version.split('-')[0];
+const [major, minor, patch] = baseVersion.split('.').map(Number);
 const versionCode = major * 10_000 + minor * 100 + patch;
 
 let gradle = readFileSync(BUILD_GRADLE_PATH, 'utf8');
