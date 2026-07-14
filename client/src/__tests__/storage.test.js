@@ -20,8 +20,6 @@ vi.mock('../services/appStore.js', () => ({
 vi.mock('../services/dbStore.js', () => ({
   getTable: vi.fn(async (key) => globalThis.__TEST_DB_STORE__.get(key) ?? null),
   setTable: vi.fn(async (key, value) => { globalThis.__TEST_DB_STORE__.set(key, value); }),
-  removeTable: vi.fn(async (key) => { globalThis.__TEST_DB_STORE__.delete(key); }),
-  clearAll: vi.fn(async () => { globalThis.__TEST_DB_STORE__.clear(); }),
   migrateFromLocalStorage: vi.fn(async () => {})
 }));
 

@@ -140,11 +140,3 @@ export async function resolveImageUrl(refKey) {
   objectUrlCache.set(refKey, url);
   return url;
 }
-
-export function revokeImageUrl(refKey) {
-  const url = objectUrlCache.get(refKey);
-  if (url) {
-    URL.revokeObjectURL(url);
-    objectUrlCache.delete(refKey);
-  }
-}
