@@ -190,6 +190,26 @@ export default function ItemForm({
       if (imagePreview) URL.revokeObjectURL(imagePreview);
       setImagePreview(URL.createObjectURL(compressed));
 
+      // First capture in create mode (no image yet): create the item now and
+      // hand off to ItemDetails, which runs the AI analysis and auto-populates
+      // the fields. This gives an immediate "snap -> details" flow instead of
+      // analyzing in place and lingering on the form.
+      if (isCreate && !imageFile) {
+        const targetBinId = initialBinId || selectedBinId;
+        if (targetBinId) {
+          const newItem = await createItem(targetBinId, '', '', [], '', compressed);
+          setItemId(newItem.id);
+          stopInlineCamera();
+          onNavigate('item-details', {
+            itemId: newItem.id,
+            autoAnalyze: !!apiKey
+          });
+          return;
+        }
+        // No bin chosen yet: stay in the form so the user can pick one.
+        return;
+      }
+
       if (apiKey) {
         setAiAnalyzing(true);
         const metadata = await analyzeItemImage(apiKey, compressed);

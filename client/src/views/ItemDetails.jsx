@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Package, MapPin, Tag, RefreshCw, Eye, Edit, Trash2, MoreHorizontal, Sparkles
 } from 'lucide-react';
@@ -9,7 +9,7 @@ import { getImageBlob, isImageRef } from '../services/localImages';
 import BackButton from '../components/BackButton';
 import MessageBanner from '../components/MessageBanner';
 
-export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }) {
+export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce, autoAnalyze = false }) {
   const [item, setItem] = useState(null);
   const [bin, setBin] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -32,6 +32,10 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
   });
   const [aiApplying, setAiApplying] = useState(false);
   const [showFullImage, setShowFullImage] = useState(false);
+
+  const [autoAnalyzing, setAutoAnalyzing] = useState(false);
+  const [autoError, setAutoError] = useState('');
+  const autoAnalyzeStarted = useRef(false);
 
   useEffect(() => {
     if (!itemId) {
@@ -185,6 +189,51 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
     }
   };
 
+  // Runs the same AI analysis as the manual review flow but auto-applies the
+  // proposed fields to the item, used by the Add Item "snap -> details" handoff.
+  const runAutoAnalyze = useCallback(async () => {
+    if (!item) return;
+    setAutoError('');
+    setAutoAnalyzing(true);
+    try {
+      const apiKey = localStorage.getItem('gemini_api_key');
+      const file = await imageUrlToFile(item.image_url);
+      const metadata = await analyzeItemImage(apiKey, file);
+      const proposedTags = [
+        ...(metadata.tags || []),
+        ...(metadata.colors || [])
+      ].map((t) => t.toLowerCase().trim()).filter(Boolean);
+      const fields = {};
+      if ((metadata.title || '').trim()) fields.name = metadata.title.trim();
+      if ((metadata.description || '').trim()) fields.description = metadata.description.trim();
+      if (proposedTags.length) fields.search_tags = proposedTags;
+      if ((metadata.visible_text || '').trim()) fields.visible_text = metadata.visible_text.trim();
+      const updated = await updateItem(item.id, fields);
+      setItem(updated);
+    } catch (err) {
+      console.error(err);
+      setAutoError(err.message || 'AI analysis failed.');
+    } finally {
+      setAutoAnalyzing(false);
+    }
+  }, [item]);
+
+  // Auto-run analysis on a freshly created item so Add Item lands on populated
+  // details (progress bar, not the review modal).
+  useEffect(() => {
+    if (!autoAnalyze || autoAnalyzeStarted.current) return;
+    if (!item) return;
+    const apiKey = localStorage.getItem('gemini_api_key');
+    if (!apiKey) return;
+    const hasData =
+      (item.name && item.name.trim()) ||
+      (item.description && item.description.trim()) ||
+      (item.search_tags && item.search_tags.length);
+    if (hasData) return;
+    autoAnalyzeStarted.current = true;
+    runAutoAnalyze();
+  }, [item, autoAnalyze, runAutoAnalyze]);
+
   const aiAnalysisDisabled = !localStorage.getItem('gemini_api_key') || !item?.image_url;
 
   if (loading) {
@@ -269,6 +318,32 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
           )}
         </div>
       </div>
+
+      {/* Minimized AI progress for the Add Item snap -> details handoff */}
+      {autoAnalyzing && (
+        <div className="fixed top-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur border-b border-purple-500/30">
+          <div className="h-1 w-full bg-slate-800 overflow-hidden">
+            <div className="h-full w-1/2 bg-gradient-to-r from-purple-500 to-pink-500 animate-pulse" />
+          </div>
+          <div className="flex items-center gap-2 px-4 py-2 text-xs text-slate-300">
+            <RefreshCw className="w-3.5 h-3.5 animate-spin text-purple-400" />
+            <span>Analyzing image…</span>
+          </div>
+        </div>
+      )}
+
+      {!autoAnalyzing && autoError && (
+        <div className="fixed top-0 left-0 right-0 z-40 bg-red-500/10 border-b border-red-500/30 px-4 py-2 flex items-center gap-3">
+          <span className="flex-1 text-xs text-red-300">{autoError}</span>
+          <button
+            type="button"
+            onClick={runAutoAnalyze}
+            className="px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-200 text-xs font-semibold cursor-pointer"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
 
       {/* Item hero card */}

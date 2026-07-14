@@ -278,7 +278,7 @@ function AppContent() {
         case 'create-bin': view = <CreateBin qrId={params.qrId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} refreshNonce={refreshNonce} />; break;
         case 'bin-details': view = <BinDetails binId={params.binId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
         case 'multi-add': view = <MultiAddModal binId={params.binId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
-        case 'item-details': view = <ItemDetails itemId={params.itemId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
+        case 'item-details': view = <ItemDetails itemId={params.itemId} autoAnalyze={params.autoAnalyze} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
         case 'edit-item': view = <ItemForm mode="edit" itemId={params.itemId} onBack={onBack} refreshNonce={refreshNonce} />; break;
         case 'add-item': view = <ItemForm mode="create" binId={params.binId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
         case 'settings': view = <Settings onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
