@@ -225,13 +225,11 @@ export default function MultiAddModal({ binId, onNavigate, onBack, refreshNonce 
 
   useEffect(() => {
     return () => {
+      // Do NOT abort in-flight jobs on unmount: processing must continue in the
+      // background so items still get added to the bin after the modal is closed.
+      // Only release the preview blob URLs to avoid leaking them.
       rollRef.current.forEach((card) => {
-        try {
-          card.abortController.abort();
-        } catch {
-          // Ignore.
-        }
-        URL.revokeObjectURL(card.previewUrl);
+        if (card.previewUrl) URL.revokeObjectURL(card.previewUrl);
       });
     };
   }, []);
