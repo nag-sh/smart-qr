@@ -192,9 +192,13 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
   }, [bins, items]);
 
   const allTags = useMemo(() => {
-    const tags = new Set();
-    items.forEach(i => { (i.search_tags || []).forEach(t => tags.add(t)); });
-    return Array.from(tags).sort((a, b) => a.localeCompare(b));
+    const counts = new Map();
+    items.forEach(i => {
+      (i.search_tags || []).forEach(t => counts.set(t, (counts.get(t) || 0) + 1));
+    });
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([tag]) => tag);
   }, [items]);
 
   const allBins = useMemo(() => [...bins].sort((a, b) => a.name.localeCompare(b.name)), [bins]);
