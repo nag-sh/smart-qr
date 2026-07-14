@@ -1,6 +1,6 @@
 export const MODAL_PARAM_KEYS = {
   'bin-details': ['binId'],
-  'item-details': ['itemId'],
+  'item-details': ['itemId', 'autoAnalyze', 'pendingCreate', 'binId'],
   'create-bin': ['qrId'],
   'add-item': ['binId'],
   'scanner': [],

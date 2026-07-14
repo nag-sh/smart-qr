@@ -7,6 +7,7 @@ import InlineCamera from '../components/InlineCamera';
 import { compressImage } from '../utils/imageCompression';
 import { analyzeItemImage } from '../services/gemini';
 import { createItem, updateItem, getBins, searchItems, batchManageItems } from '../services/storage';
+import { setPendingCreate } from '../services/pendingCreate';
 import useImageSrc from '../hooks/useImageSrc';
 
 export default function ItemForm({
@@ -197,11 +198,14 @@ export default function ItemForm({
       if (isCreate && !imageFile) {
         const targetBinId = initialBinId || selectedBinId;
         if (targetBinId) {
-          const newItem = await createItem(targetBinId, '', '', [], '', compressed);
-          setItemId(newItem.id);
-          stopInlineCamera();
+          // Hand the captured image to ItemDetails via an in-memory holder and
+          // navigate now, so the details screen opens immediately. Modal params
+          // are URL-serialized and cannot carry a File, so ItemDetails creates
+          // the item from the held image in the background, then runs analysis.
+          setPendingCreate(compressed);
           onNavigate('item-details', {
-            itemId: newItem.id,
+            pendingCreate: true,
+            binId: targetBinId,
             autoAnalyze: !!apiKey
           });
           return;

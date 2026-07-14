@@ -2,15 +2,29 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Package, MapPin, Tag, RefreshCw, Eye, Edit, Trash2, MoreHorizontal, Sparkles
 } from 'lucide-react';
-import { searchItems, getBin, deleteItem, updateItem } from '../services/storage';
+import { searchItems, getBin, deleteItem, updateItem, createItem } from '../services/storage';
+import { takePendingCreate } from '../services/pendingCreate';
 import useImageSrc from '../hooks/useImageSrc';
 import { analyzeItemImage } from '../services/gemini';
 import { getImageBlob, isImageRef } from '../services/localImages';
 import BackButton from '../components/BackButton';
 import MessageBanner from '../components/MessageBanner';
 
-export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce, autoAnalyze = false }) {
+export default function ItemDetails({
+  onNavigate,
+  itemId,
+  onBack,
+  refreshNonce,
+  autoAnalyze: autoAnalyzeParam = false,
+  pendingCreate: pendingCreateParam = false,
+  binId
+}) {
+  // Modal params are URL-serialized on every render, which turns booleans into
+  // strings ("false" is truthy), so coerce explicitly here.
+  const autoAnalyze = autoAnalyzeParam === true || autoAnalyzeParam === 'true';
+  const pendingCreate = pendingCreateParam === true || pendingCreateParam === 'true';
   const [item, setItem] = useState(null);
+  const [resolvedItemId, setResolvedItemId] = useState(itemId);
   const [bin, setBin] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -37,8 +51,35 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce, 
   const [autoError, setAutoError] = useState('');
   const autoAnalyzeStarted = useRef(false);
 
+  // A File cannot travel through URL-serialized modal params, so ItemForm stashes
+  // the captured image in a module-level holder; we consume it here to create the item.
   useEffect(() => {
-    if (!itemId) {
+    if (!pendingCreate || resolvedItemId) return;
+    let cancelled = false;
+    (async () => {
+      const file = takePendingCreate();
+      if (!file) {
+        if (!cancelled) setError('Captured image was lost. Please try adding the item again.');
+        return;
+      }
+      try {
+        const created = await createItem(binId, '', '', [], '', file);
+        if (!cancelled) setResolvedItemId(created.id);
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) setError(err.message || 'Failed to create item.');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [pendingCreate, binId, resolvedItemId]);
+
+  useEffect(() => {
+    if (pendingCreate && !resolvedItemId) {
+      setLoading(true);
+      setError('');
+      return;
+    }
+    if (!resolvedItemId) {
       setLoading(false);
       setError('Item ID is missing');
       return;
@@ -49,7 +90,7 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce, 
       setError('');
       try {
         const items = await searchItems('');
-        const found = items.find((i) => i.id === itemId);
+        const found = items.find((i) => i.id === resolvedItemId);
         if (!found) {
           setError('Item not found');
           setItem(null);
@@ -76,7 +117,7 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce, 
     };
 
     fetchItem();
-  }, [itemId, refreshNonce]);
+  }, [pendingCreate, resolvedItemId, refreshNonce]);
 
   useEffect(() => {
     if (!showOverflowMenu) return;
@@ -284,7 +325,7 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce, 
               <button
                 onClick={() => {
                   setShowOverflowMenu(false);
-                  onNavigate('edit-item', { itemId });
+                  onNavigate('edit-item', { itemId: item.id });
                 }}
                 className="w-full px-4 py-3 text-left text-sm text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-2 transition-colors cursor-pointer"
               >
