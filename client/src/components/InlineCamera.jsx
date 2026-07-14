@@ -12,7 +12,8 @@ export default function InlineCamera(props) {
     uploadButtonLabel = 'Upload File',
     startingText = 'Camera starting...',
     unsupportedMessage = 'WebRTC camera not supported. Opening standard file selector.',
-    blockedMessage = 'Camera access blocked. Opening file selector...'
+    blockedMessage = 'Camera access blocked. Opening file selector...',
+    showCapturedFrame = true
   } = props;
 
   // onStartCamera is accepted for API symmetry but is not used directly; the parent
@@ -83,7 +84,7 @@ export default function InlineCamera(props) {
       setCameraStream(stream);
     };
 
-    startCamera();
+    startCamera(usingFrontCamera.current ? 'user' : 'environment');
 
     return () => {
       cancelled = true;
@@ -100,14 +101,11 @@ export default function InlineCamera(props) {
   const handleSwitchCamera = () => {
     setCameraReady(false);
     usingFrontCamera.current = !usingFrontCamera.current;
-    const facingMode = usingFrontCamera.current ? 'user' : 'environment';
     if (cameraStream) {
       cameraStream.getTracks().forEach((track) => track.stop());
       setCameraStream(null);
     }
-    // The start effect will re-run with the new facingMode because cameraStream
-    // was nulled. The ref holds the facing-mode preference for the next start.
-    void facingMode;
+    // Nulling the stream re-triggers the start effect, which reads usingFrontCamera.current for the new facing mode.
   };
 
   const handleVideoReady = () => {
@@ -160,7 +158,7 @@ export default function InlineCamera(props) {
         onLoadedData={handleVideoReady}
         onLoadedMetadata={handleVideoReady}
       />
-      {capturedFrame && (
+      {showCapturedFrame && capturedFrame && (
         <img
           src={capturedFrame}
           alt=""
