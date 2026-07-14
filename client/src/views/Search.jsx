@@ -796,7 +796,7 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-6">
+            <div className="flex-1 overflow-y-auto p-4 pb-24 space-y-6">
               {allLocations.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
