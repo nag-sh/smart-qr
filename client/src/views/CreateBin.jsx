@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Box, MapPin, RefreshCw, Save, QrCode, Sparkles, CheckCircle2, ArrowRight, Printer } from 'lucide-react';
+import { Box, MapPin, Camera, RefreshCw, Save, QrCode, Sparkles, CheckCircle2, ArrowRight, Printer } from 'lucide-react';
 import BackButton from '../components/BackButton';
 import MessageBanner from '../components/MessageBanner';
+import PhotoUploadArea from '../components/PhotoUploadArea';
+import LocationPicker from '../components/LocationPicker';
 import { compressImage } from '../utils/imageCompression';
 import { createBin, getBins } from '../services/storage';
-import PhotoUploadArea from '../components/PhotoUploadArea';
+import QRCode from 'qrcode';
 
 export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refreshNonce }) {
   // Mode switcher when qrId is undefined: 'choice' | 'form'
@@ -31,7 +33,7 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
     };
     fetchLocations();
   }, [refreshNonce]);
-  
+
   // UI States
   const [compressing, setCompressing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -42,8 +44,22 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
   // Success state for generated digital QR
   const [successBin, setSuccessBin] = useState(null);
   const [generatedQrText, setGeneratedQrText] = useState('');
-  
+  const [generatedQrDataUrl, setGeneratedQrDataUrl] = useState('');
+
   const fileInputRef = useRef(null);
+
+  // Generate QR data URL locally when text changes
+  useEffect(() => {
+    if (!generatedQrText) {
+      setGeneratedQrDataUrl('');
+      return;
+    }
+    let cancelled = false;
+    QRCode.toDataURL(generatedQrText, { width: 200, margin: 1 })
+      .then((url) => { if (!cancelled) setGeneratedQrDataUrl(url); })
+      .catch(() => { if (!cancelled) setGeneratedQrDataUrl(''); });
+    return () => { cancelled = true; };
+  }, [generatedQrText]);
 
   const startInlineCamera = () => {
     setUseInlineCamera(true);
@@ -78,7 +94,7 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
     try {
       const compressed = await compressImage(file);
       setImageFile(compressed);
-      
+
       if (imagePreview) {
         URL.revokeObjectURL(imagePreview);
       }
@@ -230,9 +246,9 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
 
         {/* QR Code display */}
         <div className="bg-white p-4 rounded-2xl w-fit mx-auto shadow-2xl border border-slate-200">
-          <img 
-            src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(generatedQrText)}`} 
-            alt="Bin QR Code" 
+          <img
+            src={generatedQrDataUrl}
+            alt="Bin QR Code"
             className="w-[180px] h-[180px] object-contain"
           />
         </div>
@@ -301,8 +317,8 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
           <div>
             <h1 className="font-bold text-sm text-slate-200">Register New Bin</h1>
             <p className="text-[10px] text-slate-400">
-              {generateMode 
-                ? 'Seeding with digital QR code generation' 
+              {generateMode
+                ? 'Seeding with digital QR code generation'
                 : <>QR: <span className="font-mono text-purple-300">{qrId}</span></>}
             </p>
           </div>
@@ -357,92 +373,26 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
             </div>
           </div>
 
-           <div>
-            <label htmlFor="binLoc" className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-              Location
-            </label>
-            <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
-              <input
-                id="binLoc"
-                type="text"
-                placeholder="e.g. Basement Shelf A"
-                value={location}
-                onChange={(e) => {
-                  setLocation(e.target.value);
-                  setShowLocationDropdown(true);
-                }}
-                onFocus={() => setShowLocationDropdown(true)}
-                className="w-full pl-10 pr-4 py-3 rounded-xl glass-input text-sm text-slate-100 placeholder-slate-500"
-                disabled={loading}
-              />
-              
-              {/* Click outside to close helper */}
-              {showLocationDropdown && allLocations.length > 5 && (
-                <div 
-                  className="fixed inset-0 z-30" 
-                  onClick={() => setShowLocationDropdown(false)}
-                />
-              )}
-
-              {/* Dropdown for excessive locations count (> 5) */}
-              {showLocationDropdown && allLocations.length > 5 && (
-                <div className="absolute left-0 right-0 mt-1 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl z-40 max-h-48 overflow-y-auto">
-                  {allLocations
-                    .filter(loc => loc.toLowerCase().includes(location.toLowerCase()))
-                    .map(loc => (
-                      <button
-                        key={loc}
-                        type="button"
-                        onClick={() => {
-                          setLocation(loc);
-                          setShowLocationDropdown(false);
-                        }}
-                        className="w-full px-4 py-2.5 text-left text-xs text-slate-350 hover:bg-purple-600/25 hover:text-white transition-colors block"
-                      >
-                        {loc}
-                      </button>
-                    ))}
-                  {allLocations.filter(loc => loc.toLowerCase().includes(location.toLowerCase())).length === 0 && (
-                    <div className="px-4 py-2.5 text-xs text-slate-500 italic">No matching locations. Keep typing to add new.</div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Inline clickable list for smaller locations count (<= 5) */}
-            {allLocations.length > 0 && allLocations.length <= 5 && (
-              <div className="mt-2.5 space-y-1.5">
-                <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Saved Locations:</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {allLocations.map(loc => (
-                    <button
-                      key={loc}
-                      type="button"
-                      onClick={() => setLocation(loc)}
-                      className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-bold cursor-pointer transition-all active:scale-95 ${
-                        location.toLowerCase() === loc.toLowerCase()
-                          ? 'bg-purple-550/20 border-purple-500/40 text-purple-300'
-                          : 'bg-slate-950/45 border-slate-850 hover:border-slate-700 text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      {loc}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          <LocationPicker
+            icon={<MapPin className="w-4 h-4" />}
+            inputCls="w-full pl-10 pr-4 py-3 rounded-xl glass-input text-sm text-slate-100 placeholder-slate-500"
+            labelCls="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2"
+            inputId="binLoc"
+            placeholder="e.g. Basement Shelf A"
+            disabled={loading}
+            dropdownItemCls="w-full px-4 py-2.5 text-left text-xs text-slate-350 hover:bg-purple-600/25 hover:text-white transition-colors block"
+            value={location}
+            onChange={setLocation}
+            onFocus={() => setShowLocationDropdown(true)}
+            allLocations={allLocations}
+            showDropdown={showLocationDropdown}
+            setShowDropdown={setShowLocationDropdown}
+            label="Location"
+            savedLocationsLabel="Saved Locations:"
+          />
         </div>
 
-        {error && (
-          <MessageBanner
-            type="error"
-            message={error}
-            className="p-3.5 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2 text-xs text-red-300"
-            iconClassName="w-4 h-4 shrink-0 mt-0.5"
-          />
-        )}
+        {error && <MessageBanner type="error" message={error} />}
 
         <button
           type="submit"

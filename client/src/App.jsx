@@ -14,8 +14,7 @@ import Scanner from './views/Scanner';
 import CreateBin from './views/CreateBin';
 import BinDetails from './views/BinDetails';
 import ItemDetails from './views/ItemDetails';
-import EditItem from './views/EditItem';
-import AddItem from './views/AddItem';
+import ItemForm from './views/ItemForm';
 import Settings from './views/Settings';
 import RestorePoints from './views/RestorePoints';
 import PrintRandomized from './views/PrintRandomized';
@@ -172,12 +171,27 @@ function AppContent() {
   useEdgeGestures(rootRef, { onBack });
 
   // central printing trigger
-  const handlePrintBin = (qrId, binName) => {
+  const handlePrintBin = async (qrId, binName) => {
     // Avoid the two print containers ever coexisting in print media.
     setRandomPrintData(null);
-    setPrintData({ qr_id: qrId, name: binName });
     setPrintError('');
     setShowPrintHelper(true);
+
+    let dataUrl = '';
+    try {
+      dataUrl = await QRCode.toDataURL(qrId, {
+        width: 1000,
+        margin: 1,
+        errorCorrectionLevel: 'M'
+      });
+    } catch (err) {
+      console.error('QR generation failed:', err);
+      setPrintError('Failed to generate QR code');
+      return;
+    }
+
+    setPrintData({ qr_id: qrId, name: binName, dataUrl });
+
     // Give the DOM a beat to render the hidden label, then use the native
     // print path on Android (WebViews don't support window.print) and the
     // standard browser print dialog everywhere else.
@@ -263,8 +277,8 @@ function AppContent() {
         case 'create-bin': view = <CreateBin qrId={params.qrId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} refreshNonce={refreshNonce} />; break;
         case 'bin-details': view = <BinDetails binId={params.binId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
         case 'item-details': view = <ItemDetails itemId={params.itemId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
-        case 'edit-item': view = <EditItem itemId={params.itemId} onBack={onBack} refreshNonce={refreshNonce} />; break;
-        case 'add-item': view = <AddItem binId={params.binId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
+        case 'edit-item': view = <ItemForm mode="edit" itemId={params.itemId} onBack={onBack} refreshNonce={refreshNonce} />; break;
+        case 'add-item': view = <ItemForm mode="create" binId={params.binId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
         case 'settings': view = <Settings onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
         case 'restore-points': view = <RestorePoints onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
         case 'print-randomized': view = <PrintRandomized onNavigate={onNavigate} onBack={onBack} onPrintRandom={handlePrintRandom} />; break;
@@ -402,7 +416,7 @@ function AppContent() {
       {printData && (
         <div className="print-label-only hidden">
           <img
-            src={`https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&data=${encodeURIComponent(printData.qr_id)}`}
+            src={printData.dataUrl}
             alt="Print QR Label"
             className="print-qr-code"
           />
