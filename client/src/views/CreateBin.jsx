@@ -40,6 +40,8 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
   const [useInlineCamera, setUseInlineCamera] = useState(false);
   const [cameraStream, setCameraStream] = useState(null);
   const [cameraReady, setCameraReady] = useState(false);
+  const [capturedFrame, setCapturedFrame] = useState(null);
+  const [shutterFlash, setShutterFlash] = useState(false);
 
   // Success state for generated digital QR
   const [successBin, setSuccessBin] = useState(null);
@@ -67,6 +69,8 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
   const startInlineCamera = async (deviceId = currentDeviceId) => {
     setError('');
     setCameraReady(false);
+    setCapturedFrame(null);
+    setShutterFlash(false);
 
     if (cameraStream) {
       cameraStream.getTracks().forEach(track => track.stop());
@@ -161,6 +165,11 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
       
       const ctx = canvas.getContext('2d');
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      setCapturedFrame(dataUrl);
+      setShutterFlash(true);
+      setTimeout(() => setShutterFlash(false), 300);
 
       canvas.toBlob(async (blob) => {
         if (!blob) {
@@ -460,6 +469,16 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
                   onLoadedData={handleVideoReady}
                   onLoadedMetadata={handleVideoReady}
                 />
+                {capturedFrame && (
+                  <img
+                    src={capturedFrame}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-contain z-10"
+                  />
+                )}
+                {shutterFlash && (
+                  <div className="absolute inset-0 bg-white z-20 shutter-flash pointer-events-none" />
+                )}
                 {hasMultipleCameras && (
                   <button
                     type="button"

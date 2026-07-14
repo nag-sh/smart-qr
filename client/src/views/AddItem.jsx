@@ -52,6 +52,8 @@ export default function AddItem({ binId, onNavigate, onBack }) {
   const [useInlineCamera, setUseInlineCamera] = useState(false);
   const [cameraStream, setCameraStream] = useState(null);
   const [cameraReady, setCameraReady] = useState(false);
+  const [capturedFrame, setCapturedFrame] = useState(null);
+  const [shutterFlash, setShutterFlash] = useState(false);
 
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
@@ -104,6 +106,8 @@ export default function AddItem({ binId, onNavigate, onBack }) {
   const startInlineCamera = async (deviceId = currentDeviceId) => {
     setError('');
     setCameraReady(false);
+    setCapturedFrame(null);
+    setShutterFlash(false);
 
     if (cameraStream) {
       cameraStream.getTracks().forEach(track => track.stop());
@@ -199,6 +203,11 @@ export default function AddItem({ binId, onNavigate, onBack }) {
       const ctx = canvas.getContext('2d');
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      setCapturedFrame(dataUrl);
+      setShutterFlash(true);
+      setTimeout(() => setShutterFlash(false), 300);
+
       canvas.toBlob(async (blob) => {
         if (!blob) {
           setError('Failed to capture frame.');
@@ -206,10 +215,8 @@ export default function AddItem({ binId, onNavigate, onBack }) {
         }
         const file = new File([blob], 'item-capture.jpg', { type: 'image/jpeg' });
         
-        // Stop inline stream before executing AI analysis overlay
-        stopInlineCamera();
-        
         await processAndAnalyzeImage(file);
+        stopInlineCamera();
       }, 'image/jpeg', 0.85);
 
     } catch (err) {
@@ -433,6 +440,16 @@ export default function AddItem({ binId, onNavigate, onBack }) {
                   onLoadedData={handleVideoReady}
                   onLoadedMetadata={handleVideoReady}
                 />
+                {capturedFrame && (
+                  <img
+                    src={capturedFrame}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-contain z-10"
+                  />
+                )}
+                {shutterFlash && (
+                  <div className="absolute inset-0 bg-white z-20 shutter-flash pointer-events-none" />
+                )}
                 {hasMultipleCameras && (
                   <button
                     type="button"
