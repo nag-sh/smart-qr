@@ -18,6 +18,9 @@ import {
 import { saveBackup, shareBackup, pickBackup } from '../services/nativeFiles';
 import JSZip from 'jszip';
 
+const isUserCancel = (err) =>
+  typeof err?.message === 'string' && err.message.toLowerCase().includes('cancel');
+
 export default function Settings({ onNavigate, onBack, modalTypes }) {
   const [apiKey, setApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
@@ -39,6 +42,9 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
   const [importSuccess, setImportSuccess] = useState('');
   const [importError, setImportError] = useState('');
   const [includeImages, setIncludeImages] = useState(true);
+
+  // Export operations status (success / error banner after Save As / Share)
+  const [exportStatus, setExportStatus] = useState(null); // { type: 'success' | 'error', message }
 
 
 
@@ -310,23 +316,29 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
 
   const handleLocalExport = async (e) => {
     e.preventDefault();
+    setExportStatus(null);
     try {
       const { zipBlob, filename } = await generateExportZip();
       await saveBackup(zipBlob, filename);
+      setExportStatus({ type: 'success', message: 'Backup saved to the location you chose.' });
     } catch (err) {
+      if (isUserCancel(err)) return;
       console.error(err);
-      alert('Failed to generate local export file.');
+      setExportStatus({ type: 'error', message: 'Could not save backup: ' + (err?.message || 'Unknown error') });
     }
   };
 
   const handleShareExport = async (e) => {
     e.preventDefault();
+    setExportStatus(null);
     try {
       const { zipBlob, filename } = await generateExportZip();
       await shareBackup(zipBlob, filename);
+      setExportStatus({ type: 'success', message: 'Backup shared.' });
     } catch (err) {
+      if (isUserCancel(err)) return;
       console.error(err);
-      alert('Failed to generate local export file.');
+      setExportStatus({ type: 'error', message: 'Could not share backup: ' + (err?.message || 'Unknown error') });
     }
   };
 
@@ -864,6 +876,18 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
                   </span>
                 </div>
               </label>
+
+              {exportStatus && (
+                <MessageBanner
+                  type={exportStatus.type}
+                  message={exportStatus.message}
+                  onClose={() => setExportStatus(null)}
+                  className={exportStatus.type === 'success'
+                    ? 'p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-start gap-2.5 text-xs text-emerald-300'
+                    : 'p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-2.5 text-xs text-red-300'}
+                  iconClassName="w-4 h-4 shrink-0 mt-0.5"
+                />
+              )}
           </div>
 
           {/* Import Backup utilities */}
