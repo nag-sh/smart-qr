@@ -429,11 +429,14 @@ export default function MultiAddModal({ binId, onNavigate, onBack, refreshNonce 
               </div>
             )}
 
-            {roll.map((card) => (
-              <div
-                key={card.id}
-                className="flex-shrink-0 w-36 rounded-xl border border-slate-800 bg-slate-900 overflow-hidden flex flex-col"
-              >
+            {roll.map((card) => {
+              const clickable = card.status === 'success' && card.item?.id;
+              return (
+                <div
+                  key={card.id}
+                  onClick={clickable ? () => onNavigate('item-details', { itemId: card.item.id }) : undefined}
+                  className={`flex-shrink-0 w-36 rounded-xl border border-slate-800 bg-slate-900 overflow-hidden flex flex-col ${clickable ? 'cursor-pointer' : ''}`}
+                >
                 <div className="relative h-36 bg-slate-950">
                   <LazyThumbnail
                     src={card.previewUrl}
@@ -443,7 +446,7 @@ export default function MultiAddModal({ binId, onNavigate, onBack, refreshNonce 
 
                   <button
                     type="button"
-                    onClick={() => handleRemoveCard(card.id)}
+                    onClick={(e) => { e.stopPropagation(); handleRemoveCard(card.id); }}
                     className="absolute top-1.5 right-1.5 z-20 p-1 rounded-full bg-slate-950/70 text-slate-300 hover:text-white hover:bg-slate-900/90 transition-colors cursor-pointer"
                     aria-label="Remove"
                   >
@@ -485,7 +488,8 @@ export default function MultiAddModal({ binId, onNavigate, onBack, refreshNonce 
                   )}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

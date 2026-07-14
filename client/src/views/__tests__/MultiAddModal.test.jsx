@@ -366,6 +366,51 @@ describe('MultiAddModal', () => {
     expect(img.getAttribute('src')).toBe('blob://preview-1');
   });
 
+  it('(j) navigates to item details when clicking a success card', async () => {
+    localStorage.setItem('gemini_api_key', 'k');
+    const onNavigate = vi.fn();
+
+    const { container } = render(
+      <MultiAddModal
+        binId="bin-1"
+        onNavigate={onNavigate}
+        onBack={vi.fn()}
+        refreshNonce={0}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('capture'));
+    await waitFor(() => expect(screen.getByText('Test')).toBeInTheDocument());
+
+    const img = container.querySelector('img');
+    expect(img).not.toBeNull();
+    fireEvent.click(img);
+
+    expect(onNavigate).toHaveBeenCalledWith('item-details', { itemId: 'item-1' });
+  });
+
+  it('(k) does not navigate when clicking the remove button on a success card', async () => {
+    localStorage.setItem('gemini_api_key', 'k');
+    const onNavigate = vi.fn();
+
+    render(
+      <MultiAddModal
+        binId="bin-1"
+        onNavigate={onNavigate}
+        onBack={vi.fn()}
+        refreshNonce={0}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('capture'));
+    await waitFor(() => expect(screen.getByText('Test')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByLabelText('Remove'));
+
+    const detailsCalls = onNavigate.mock.calls.filter((call) => call[0] === 'item-details');
+    expect(detailsCalls).toHaveLength(0);
+  });
+
   it('continues processing in the background when the modal is closed before completion', async () => {
     localStorage.setItem('gemini_api_key', 'k');
 
