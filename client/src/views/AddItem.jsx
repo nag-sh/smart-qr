@@ -1,12 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, RefreshCw, Sparkles, Tag, Type, FileText, Plus, X, Save, ArrowLeft, AlertCircle, SwitchCamera } from 'lucide-react';
+import { RefreshCw, Sparkles, Tag, Type, FileText, Plus, X, Save, ArrowLeft, AlertCircle } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { analyzeItemImage } from '../services/gemini';
 import { createItem, getBins } from '../services/storage';
-import { useCameraDevices } from '../hooks/useCameraDevices';
+import PhotoUploadArea from '../components/PhotoUploadArea';
 
 export default function AddItem({ binId, onNavigate, onBack }) {
-  const { hasMultipleCameras } = useCameraDevices();
   // Key state
   const [apiKey, setApiKey] = useState('');
   
@@ -48,16 +47,9 @@ export default function AddItem({ binId, onNavigate, onBack }) {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  // WebRTC camera state
   const [useInlineCamera, setUseInlineCamera] = useState(false);
-  const [cameraStream, setCameraStream] = useState(null);
-  const [cameraReady, setCameraReady] = useState(false);
-  const [capturedFrame, setCapturedFrame] = useState(null);
-  const [shutterFlash, setShutterFlash] = useState(false);
 
   const fileInputRef = useRef(null);
-  const videoRef = useRef(null);
-  const usingFrontCamera = useRef(false);
 
   const aiSteps = [
     'Connecting to Gemini Flash...',
@@ -75,22 +67,6 @@ export default function AddItem({ binId, onNavigate, onBack }) {
     }
   }, []);
 
-  // Stop camera tracks on unmount
-  useEffect(() => {
-    return () => {
-      if (cameraStream) {
-        cameraStream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, [cameraStream]);
-
-  // Hook stream up to video element
-  useEffect(() => {
-    if (useInlineCamera && videoRef.current && cameraStream) {
-      videoRef.current.srcObject = cameraStream;
-    }
-  }, [useInlineCamera, cameraStream]);
-
   // Step indicator interval during AI analysis
   useEffect(() => {
     let interval;
@@ -104,72 +80,24 @@ export default function AddItem({ binId, onNavigate, onBack }) {
     return () => clearInterval(interval);
   }, [aiAnalyzing]);
 
-  const startInlineCamera = async (facingMode = 'environment') => {
-    setError('');
-    setCameraReady(false);
-    setCapturedFrame(null);
-    setShutterFlash(false);
-
-    if (cameraStream) {
-      cameraStream.getTracks().forEach(track => track.stop());
-    }
-
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setError('WebRTC camera not supported. Opening standard file selector.');
-      setCameraStream(null);
-      setUseInlineCamera(false);
-      triggerFilePicker();
-      return;
-    }
-
-    const baseConstraints = { width: { ideal: 1280 }, height: { ideal: 720 } };
-    let stream = null;
-
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode, ...baseConstraints }
-      });
-    } catch (err) {
-      const fallbackFacingMode = facingMode === 'environment' ? 'user' : 'environment';
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: fallbackFacingMode, ...baseConstraints }
-        });
-      } catch (fallbackErr) {
-        console.error('Failed to get camera stream:', fallbackErr);
-        setCameraStream(null);
-        setUseInlineCamera(false);
-        setError('Camera access blocked. Opening file selector...');
-        triggerFilePicker();
-        return;
-      }
-    }
-
-    setCameraStream(stream);
+  const startInlineCamera = () => {
     setUseInlineCamera(true);
   };
 
   const stopInlineCamera = () => {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach(track => track.stop());
-      setCameraStream(null);
-    }
     setUseInlineCamera(false);
-    setCameraReady(false);
   };
 
-  const handleSwitchCamera = () => {
-    setCameraReady(false);
-    usingFrontCamera.current = !usingFrontCamera.current;
-    const facingMode = usingFrontCamera.current ? 'user' : 'environment';
-    startInlineCamera(facingMode);
-  };
-
-  const handleVideoReady = () => {
-    const video = videoRef.current;
-    if (video && video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
-      setCameraReady(true);
+  const triggerFilePicker = () => {
+    stopInlineCamera();
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
     }
+  };
+
+  const handleCapture = async (file) => {
+    await processAndAnalyzeImage(file);
+    stopInlineCamera();
   };
 
   useEffect(() => {
@@ -178,45 +106,6 @@ export default function AddItem({ binId, onNavigate, onBack }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const capturePhoto = (e) => {
-    if (e) e.stopPropagation();
-    const video = videoRef.current;
-    if (!video || !cameraReady || video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
-      setError('Camera is not ready yet. Please wait a moment.');
-      return;
-    }
-
-    try {
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
-      
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-      setCapturedFrame(dataUrl);
-      setShutterFlash(true);
-      setTimeout(() => setShutterFlash(false), 300);
-
-      canvas.toBlob(async (blob) => {
-        if (!blob) {
-          setError('Failed to capture frame.');
-          return;
-        }
-        const file = new File([blob], 'item-capture.jpg', { type: 'image/jpeg' });
-        
-        await processAndAnalyzeImage(file);
-        stopInlineCamera();
-      }, 'image/jpeg', 0.85);
-
-    } catch (err) {
-      console.error('Capture frame error:', err);
-      setError('Failed to snap photo. Using file selector fallback...');
-      triggerFilePicker();
-    }
-  };
 
   const processAndAnalyzeImage = async (file) => {
     setError('');
@@ -276,13 +165,6 @@ export default function AddItem({ binId, onNavigate, onBack }) {
     const file = e.target.files[0];
     if (!file) return;
     await processAndAnalyzeImage(file);
-  };
-
-  const triggerFilePicker = () => {
-    stopInlineCamera();
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
   };
 
   const handleAddTag = (e) => {
@@ -408,123 +290,25 @@ export default function AddItem({ binId, onNavigate, onBack }) {
       )}
 
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
-        {/* Photo capture input */}
-        <div className="space-y-2">
-          <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            Item Photo
-          </label>
-          <input
-            type="file"
-            accept="image/*"
-            ref={fileInputRef}
-            onChange={handleImageChange}
-            className="hidden"
-          />
-          
-          <div className={`relative bg-slate-950 overflow-hidden rounded-2xl ${useInlineCamera ? 'aspect-video' : 'aspect-square'}`}>
-            {useInlineCamera ? (
-              <>
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  className="w-full h-full object-contain"
-                  onLoadedData={handleVideoReady}
-                  onLoadedMetadata={handleVideoReady}
-                />
-                {capturedFrame && (
-                  <img
-                    src={capturedFrame}
-                    alt=""
-                    className="absolute inset-0 w-full h-full object-contain z-10"
-                  />
-                )}
-                {shutterFlash && (
-                  <div className="absolute inset-0 bg-white z-20 shutter-flash pointer-events-none" />
-                )}
-                {hasMultipleCameras && (
-                  <button
-                    type="button"
-                    onClick={handleSwitchCamera}
-                    aria-label="Switch camera"
-                    className="absolute bottom-4 right-4 z-30 p-2 rounded-full bg-slate-900/80 border border-slate-700/60 text-slate-300 hover:text-white transition-colors cursor-pointer"
-                  >
-                    <SwitchCamera className="w-4 h-4" />
-                  </button>
-                )}
-                {!cameraReady && (
-                  <div className="absolute bottom-16 left-0 right-0 flex justify-center z-20 pointer-events-none">
-                    <span className="px-3 py-1.5 rounded-full bg-slate-900/80 text-slate-300 text-[10px] font-medium">
-                      Camera starting...
-                    </span>
-                  </div>
-                )}
-                <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 px-2 z-20">
-                  <button
-                    type="button"
-                    onClick={capturePhoto}
-                    disabled={!cameraReady || compressing || aiAnalyzing}
-                    className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg active:scale-95 transition-transform cursor-pointer"
-                  >
-                    <Camera className="w-4 h-4" /> Snap
-                  </button>
-                  <button
-                    type="button"
-                    onClick={triggerFilePicker}
-                    className="px-4 py-2.5 bg-slate-900/90 border border-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-bold cursor-pointer"
-                  >
-                    Upload File
-                  </button>
-                </div>
-              </>
-            ) : imagePreview ? (
-              <>
-                <img src={imagePreview} alt="Item Preview" className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-slate-950/65 opacity-0 hover:opacity-100 flex flex-col items-center justify-center transition-opacity gap-2.5">
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); startInlineCamera(); }}
-                    className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-[10px] font-bold rounded-xl flex items-center gap-1.5 shadow-lg cursor-pointer"
-                  >
-                    <Camera className="w-3.5 h-3.5" /> Retake Camera
-                  </button>
-                  <button
-                    type="button"
-                    onClick={triggerFilePicker}
-                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-slate-300 text-[10px] font-bold rounded-xl flex items-center gap-1.5 cursor-pointer"
-                  >
-                    Upload File
-                  </button>
-                </div>
-              </>
-            ) : compressing ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center space-y-2 text-center text-slate-400 text-xs">
-                <RefreshCw className="w-6 h-6 animate-spin mx-auto text-purple-400" />
-                <span>Optimizing photo...</span>
-              </div>
-            ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center space-y-3 text-center text-slate-400 p-4">
-                <div className="flex flex-col gap-2 px-4 w-full max-w-[240px]">
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); startInlineCamera(); }}
-                    className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-lg active:scale-95 transition-transform cursor-pointer"
-                  >
-                    <Camera className="w-4 h-4" /> Start Camera
-                  </button>
-                  <button
-                    type="button"
-                    onClick={triggerFilePicker}
-                    className="px-4 py-2 bg-slate-900 border border-slate-800/80 text-slate-300 hover:text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    Select File
-                  </button>
-                </div>
-                <span className="block text-[9px] text-slate-500 max-w-[240px] mx-auto leading-normal">WebRTC camera interface for mobile and desktop web browsers</span>
-              </div>
-            )}
-          </div>
-        </div>
+        <PhotoUploadArea
+          label="Item Photo"
+          fileInputRef={fileInputRef}
+          onFileChange={handleImageChange}
+          imagePreview={imagePreview}
+          previewAlt="Item Preview"
+          compressing={compressing}
+          useInlineCamera={useInlineCamera}
+          onCapture={handleCapture}
+          captureFileName="item-capture.jpg"
+          onStartCamera={startInlineCamera}
+          onTriggerFilePicker={triggerFilePicker}
+          snapButtonLabel="Snap"
+          uploadButtonLabel="Upload File"
+          startButtonLabel="Start Camera"
+          selectButtonLabel="Select File"
+          retakeButtonLabel="Retake Camera"
+          helperText="WebRTC camera interface for mobile and desktop web browsers"
+        />
 
         {/* Form details */}
         <div className="space-y-4 animate-fade-in">

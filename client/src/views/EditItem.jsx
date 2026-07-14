@@ -3,6 +3,7 @@ import { RefreshCw, Save, Plus, Camera } from 'lucide-react';
 import { searchItems, getBins, updateItem, batchManageItems } from '../services/storage';
 import imageCompression from 'browser-image-compression';
 import useImageSrc from '../hooks/useImageSrc';
+import PhotoUploadArea from '../components/PhotoUploadArea';
 
 // Top-level stacked modal for editing an item. Rendered by App's modal stack
 // (not nested inside ItemDetails) so it appears as a clean, full modal layer.
@@ -21,11 +22,8 @@ export default function EditItem({ itemId, onBack, refreshNonce }) {
   const [saving, setSaving] = useState(false);
   const [bins, setBins] = useState([]);
   const itemFileRef = useRef(null);
-  const videoRef = useRef(null);
 
   const [useInlineCamera, setUseInlineCamera] = useState(false);
-  const [cameraStream, setCameraStream] = useState(null);
-  const [cameraReady, setCameraReady] = useState(false);
   const [showImagePicker, setShowImagePicker] = useState(false);
 
   const editItemImageSrc = useImageSrc(item?.image_url);
@@ -96,110 +94,30 @@ export default function EditItem({ itemId, onBack, refreshNonce }) {
     }
   };
 
-  useEffect(() => {
-    return () => {
-      if (cameraStream) {
-        cameraStream.getTracks().forEach((track) => track.stop());
-      }
-    };
-  }, [cameraStream]);
-
-  useEffect(() => {
-    if (useInlineCamera && videoRef.current && cameraStream) {
-      videoRef.current.srcObject = cameraStream;
-    }
-  }, [useInlineCamera, cameraStream]);
-
-  const startInlineCamera = async (facingMode = 'environment') => {
+  const startInlineCamera = () => {
     setShowImagePicker(false);
-    setError('');
-    setCameraReady(false);
-
-    if (cameraStream) {
-      cameraStream.getTracks().forEach((track) => track.stop());
-    }
-
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setError('WebRTC camera not supported. Opening standard file selector.');
-      setCameraStream(null);
-      setUseInlineCamera(false);
-      if (itemFileRef.current) itemFileRef.current.click();
-      return;
-    }
-
-    const baseConstraints = { width: { ideal: 1280 }, height: { ideal: 720 } };
-    let stream = null;
-
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode, ...baseConstraints }
-      });
-    } catch (err) {
-      console.error('Failed to get preferred camera:', err);
-      const fallbackFacingMode = facingMode === 'environment' ? 'user' : 'environment';
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: fallbackFacingMode, ...baseConstraints }
-        });
-      } catch (fallbackErr) {
-        console.error('Failed to get camera stream:', fallbackErr);
-        setCameraStream(null);
-        setUseInlineCamera(false);
-        setError('Camera access blocked. Opening file selector...');
-        if (itemFileRef.current) itemFileRef.current.click();
-        return;
-      }
-    }
-
-    setCameraStream(stream);
     setUseInlineCamera(true);
   };
 
   const stopInlineCamera = () => {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach((track) => track.stop());
-      setCameraStream(null);
-    }
     setUseInlineCamera(false);
-    setCameraReady(false);
   };
 
-  const handleVideoReady = () => {
-    const video = videoRef.current;
-    if (video && video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
-      setCameraReady(true);
+  const triggerFilePicker = () => {
+    stopInlineCamera();
+    if (itemFileRef.current) {
+      itemFileRef.current.click();
     }
   };
 
-  const capturePhoto = (e) => {
-    if (e) e.stopPropagation();
-    const video = videoRef.current;
-    if (!video || !cameraReady || video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
-      setError('Camera is not ready yet. Please wait a moment.');
-      return;
-    }
+  const handleCapture = async (file) => {
+    await handleProcessImage(file);
+    stopInlineCamera();
+  };
 
-    try {
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      canvas.toBlob(async (blob) => {
-        if (!blob) {
-          setError('Failed to capture frame.');
-          return;
-        }
-        const file = new File([blob], 'item-capture.jpg', { type: 'image/jpeg' });
-        await handleProcessImage(file);
-        stopInlineCamera();
-      }, 'image/jpeg', 0.85);
-    } catch (err) {
-      console.error('Capture frame error:', err);
-      setError('Failed to snap photo. Using file selector fallback...');
-      if (itemFileRef.current) itemFileRef.current.click();
-    }
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) handleProcessImage(file);
   };
 
   const handleSave = async () => {
@@ -314,126 +232,63 @@ export default function EditItem({ itemId, onBack, refreshNonce }) {
           />
         </div>
 
-        <div>
-          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-            Photo
-          </label>
-          <input
-            type="file"
-            accept="image/*"
-            ref={itemFileRef}
-            onChange={(e) => {
-              const file = e.target.files[0];
-              if (file) handleProcessImage(file);
-            }}
-            className="hidden"
-          />
-          <div
-            className={`relative bg-slate-950 overflow-hidden rounded-2xl ${useInlineCamera ? 'aspect-video' : 'aspect-square'} ${useInlineCamera ? '' : 'cursor-pointer'}`}
-            onClick={() => {
-              if (!useInlineCamera && !showImagePicker) setShowImagePicker(true);
-            }}
-          >
-            {useInlineCamera ? (
-              <>
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  className="w-full h-full object-contain"
-                  onLoadedData={handleVideoReady}
-                  onLoadedMetadata={handleVideoReady}
-                />
-                {!cameraReady && (
-                  <div className="absolute bottom-16 left-0 right-0 flex justify-center z-20 pointer-events-none">
-                    <span className="px-3 py-1.5 rounded-full bg-slate-900/80 text-slate-300 text-[10px] font-medium">
-                      Camera starting...
-                    </span>
-                  </div>
-                )}
-                <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 px-2 z-20">
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); capturePhoto(); }}
-                    disabled={!cameraReady}
-                    className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg active:scale-95 transition-transform cursor-pointer"
-                  >
-                    <Camera className="w-4 h-4" /> Snap
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); stopInlineCamera(); setShowImagePicker(true); }}
-                    className="px-4 py-2.5 bg-slate-900/90 border border-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-bold cursor-pointer"
-                  >
-                    Upload File
-                  </button>
-                </div>
-              </>
-            ) : editImagePreview || editItemImageSrc ? (
-              <>
-                <img
-                  src={editImagePreview || editItemImageSrc}
-                  alt="Item preview"
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-slate-950/65 opacity-0 hover:opacity-100 flex flex-col items-center justify-center transition-opacity gap-2.5">
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); startInlineCamera(); }}
-                    className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-[10px] font-bold rounded-xl flex items-center gap-1.5 shadow-lg cursor-pointer"
-                  >
-                    <Camera className="w-3.5 h-3.5" /> Retake Camera
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); stopInlineCamera(); setShowImagePicker(true); }}
-                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-slate-300 text-[10px] font-bold rounded-xl flex items-center gap-1.5 cursor-pointer"
-                  >
-                    Upload File
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center space-y-1">
-                <Plus className="w-6 h-6 text-slate-500 mx-auto" />
-                <span className="text-[10px] text-slate-500 block">Change Photo</span>
-              </div>
-            )}
-
-            {showImagePicker && (
-              <div
-                className="absolute inset-0 z-30 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3 p-4"
-                onClick={(e) => e.stopPropagation()}
+        <PhotoUploadArea
+          label="Photo"
+          labelClassName="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2"
+          fileInputRef={itemFileRef}
+          onFileChange={handleImageChange}
+          imagePreview={editImagePreview || editItemImageSrc}
+          previewAlt="Item preview"
+          compressing={false}
+          useInlineCamera={useInlineCamera}
+          onCapture={handleCapture}
+          captureFileName="item-capture.jpg"
+          onStartCamera={startInlineCamera}
+          onTriggerFilePicker={triggerFilePicker}
+          snapButtonLabel="Snap"
+          uploadButtonLabel="Upload File"
+          retakeButtonLabel="Retake Camera"
+          containerClassName="cursor-pointer"
+          onContainerClick={() => { if (!showImagePicker) setShowImagePicker(true); }}
+          emptyState={(
+            <div className="absolute inset-0 flex flex-col items-center justify-center space-y-1">
+              <Plus className="w-6 h-6 text-slate-500 mx-auto" />
+              <span className="text-[10px] text-slate-500 block">Change Photo</span>
+            </div>
+          )}
+          imageSourceChooser={showImagePicker ? (
+            <div
+              className="absolute inset-0 z-30 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3 p-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="text-xs font-semibold text-slate-200">Choose photo source</p>
+              <button
+                type="button"
+                onClick={() => startInlineCamera()}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-lg active:scale-95 transition-transform cursor-pointer"
               >
-                <p className="text-xs font-semibold text-slate-200">Choose photo source</p>
-                <button
-                  type="button"
-                  onClick={() => startInlineCamera()}
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-lg active:scale-95 transition-transform cursor-pointer"
-                >
-                  <Camera className="w-4 h-4" /> Take Photo
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowImagePicker(false);
-                    if (itemFileRef.current) itemFileRef.current.click();
-                  }}
-                  className="px-4 py-2 bg-slate-900 border border-slate-800/80 text-slate-300 hover:text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  Upload File
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowImagePicker(false)}
-                  className="text-[10px] text-slate-500 hover:text-slate-300 cursor-pointer"
-                >
-                  Cancel
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+                <Camera className="w-4 h-4" /> Take Photo
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowImagePicker(false);
+                  if (itemFileRef.current) itemFileRef.current.click();
+                }}
+                className="px-4 py-2 bg-slate-900 border border-slate-800/80 text-slate-300 hover:text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                Upload File
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowImagePicker(false)}
+                className="text-[10px] text-slate-500 hover:text-slate-300 cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : null}
+        />
 
         <div>
           <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">

@@ -88,8 +88,8 @@ export default function PhotoUploadArea(props) {
       />
       <div
         className={`relative bg-slate-950 overflow-hidden rounded-2xl ${
-          useInlineCamera ? 'aspect-video' : 'aspect-square'
-        } ${containerClassName || ''}`}
+          useInlineCamera ? 'aspect-video' : `aspect-square ${containerClassName || ''}`
+        }`}
         onClick={!useInlineCamera ? onContainerClick : undefined}
       >
         {useInlineCamera ? (
