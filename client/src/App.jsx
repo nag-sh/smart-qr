@@ -18,6 +18,7 @@ import ItemForm from './views/ItemForm';
 import Settings from './views/Settings';
 import RestorePoints from './views/RestorePoints';
 import PrintRandomized from './views/PrintRandomized';
+import MultiAddModal from './views/MultiAddModal';
 import QRCode from 'qrcode';
 
 // ─── Glassy modal shell (rendered above Search + bottom nav) ───────────────
@@ -268,7 +269,7 @@ function AppContent() {
     if (stack.length === 0) return null;
     return stack.map((layer, i) => {
       const { type, params } = layer;
-      const hideClose = ['restore-points', 'bin-details', 'item-details', 'add-item', 'create-bin', 'scanner'].includes(type);
+      const hideClose = ['restore-points', 'bin-details', 'item-details', 'add-item', 'create-bin', 'scanner', 'multi-add'].includes(type);
       const isLast = i === stack.length - 1;
 
       let view;
@@ -276,6 +277,7 @@ function AppContent() {
         case 'scanner': view = <Scanner onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
         case 'create-bin': view = <CreateBin qrId={params.qrId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} refreshNonce={refreshNonce} />; break;
         case 'bin-details': view = <BinDetails binId={params.binId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
+        case 'multi-add': view = <MultiAddModal binId={params.binId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
         case 'item-details': view = <ItemDetails itemId={params.itemId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
         case 'edit-item': view = <ItemForm mode="edit" itemId={params.itemId} onBack={onBack} refreshNonce={refreshNonce} />; break;
         case 'add-item': view = <ItemForm mode="create" binId={params.binId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
