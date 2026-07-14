@@ -4,7 +4,7 @@ import {
   ExternalLink, FileJson, Download, Upload, Server,
   RefreshCw, ArrowDownToLine, ArrowUpFromLine, History, ArrowRight, ArrowLeft, Cloud, Share2
 } from 'lucide-react';
-import { isNative } from '../utils/platform.js';
+import { Capacitor } from '@capacitor/core';
 import { 
   getStorageMode, setStorageMode as persistStorageMode, initStorage,
   getLocalExportData, restoreLocalData,
@@ -25,7 +25,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
   // Storage and database mode states
   const [storageMode, setStorageModeState] = useState(getStorageMode()); // 'server' | 'local'
 
-  const isNativePlatform = isNative();
+  const isNativePlatform = Capacitor.isNativePlatform();
 
   const refreshStorageMode = async () => {
     await initStorage();
