@@ -1,6 +1,6 @@
 {
   "name": "smart-qr",
-  "version": "1.0.0",
+  "version": "0.0.1-alpha",
   "private": true,
   "description": "Smart QR Inventory — monorepo root (React PWA client + Express/SQLite server)",
   "scripts": {
