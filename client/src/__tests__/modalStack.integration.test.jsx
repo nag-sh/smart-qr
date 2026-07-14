@@ -204,4 +204,44 @@ describe('modalStack + react-router integration', () => {
     ]);
     h.cleanup();
   });
+
+  // ─── multi-add modal ─────────────────────────────────────────────────────
+
+  it('push multi-add modal populates stack and URL correctly', async () => {
+    const h = createHarness();
+    await renderHarness(h);
+
+    await navigate('multi-add', { binId: 'xyz' }, h);
+    expect(h.stateRef.current.stack).toEqual([
+      { type: 'multi-add', params: { binId: 'xyz' } },
+    ]);
+    expect(h.stateRef.current.searchString).toContain('modal=multi-add');
+    expect(h.stateRef.current.searchString).toContain('binId=xyz');
+    h.cleanup();
+  });
+
+  it('back pops multi-add modal', async () => {
+    const h = createHarness();
+    await renderHarness(h);
+
+    await navigate('multi-add', { binId: 'xyz' }, h);
+    expect(h.stateRef.current.stack).toHaveLength(1);
+
+    await goBack(h);
+    expect(h.stateRef.current.stack).toHaveLength(0);
+    expect(h.stateRef.current.searchString).toBe('');
+    h.cleanup();
+  });
+
+  it('deep link parses multi-add modal from search params', async () => {
+    const h = createHarness([
+      '/?modal=multi-add&binId=xyz',
+    ]);
+    await renderHarness(h);
+
+    expect(h.stateRef.current.stack).toEqual([
+      { type: 'multi-add', params: { binId: 'xyz' } },
+    ]);
+    h.cleanup();
+  });
 });
