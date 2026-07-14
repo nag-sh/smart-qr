@@ -296,7 +296,6 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
 
     zip.file('inventory.json', JSON.stringify({
       exported_at: new Date().toISOString(),
-      owner: 'dion',
       image_layout: 'images/<location>/<bin>/<item>.*',
       bins: rewrittenBins,
       items: rewrittenItems

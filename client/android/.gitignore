@@ -52,8 +52,9 @@ captures/
 # Comment next line if keeping position of elements in Navigation Editor is relevant for you
 .idea/navEditor.xml
 
-# Keystore files
-# Releases are signed with a local keystore; never commit it.
+# Keystore files — never commit the release signing keystore.
+# The CI release workflow decodes it from the KEYSTORE_BASE64 GitHub secret,
+# so the local file must stay out of version control.
 *.jks
 *.keystore
 

@@ -305,7 +305,6 @@ app.post('/api/bins', upload.single('image'), async (req, res) => {
       const fullImagePath = path.join(__dirname, 'uploads', req.file.filename);
       const embedded = await embedImageMetadata(fullImagePath, {
         app: 'smart-qr-inventory',
-        owner: 'dion',
         entity_type: 'bin',
         entity_id: id,
         entity_name: binName,
@@ -352,7 +351,6 @@ app.put('/api/bins/:id', upload.single('image'), async (req, res) => {
       const fullImagePath = path.join(__dirname, 'uploads', req.file.filename);
       const embedded = await embedImageMetadata(fullImagePath, {
         app: 'smart-qr-inventory',
-        owner: 'dion',
         entity_type: 'bin',
         entity_id: id,
         entity_name: name !== undefined ? name : existingBin.name,
@@ -520,7 +518,6 @@ app.post('/api/items', upload.single('image'), async (req, res) => {
       const fullImagePath = path.join(__dirname, 'uploads', req.file.filename);
       const embedded = await embedImageMetadata(fullImagePath, {
         app: 'smart-qr-inventory',
-        owner: 'dion',
         entity_type: 'item',
         entity_id: id,
         entity_name: itemName,
@@ -575,7 +572,6 @@ app.put('/api/items/:id', upload.single('image'), async (req, res) => {
       const fullImagePath = path.join(__dirname, 'uploads', req.file.filename);
       const embedded = await embedImageMetadata(fullImagePath, {
         app: 'smart-qr-inventory',
-        owner: 'dion',
         entity_type: 'item',
         entity_id: id,
         entity_name: name || existingItem.name,
@@ -955,7 +951,6 @@ export async function exportBackup(res, includeImages = true) {
 
   const exportData = {
     exported_at: new Date().toISOString(),
-    owner: 'dion',
     image_layout: 'images/<location>/<bin>/<item>.*',
     bins: exportedBins,
     items: exportedItems
