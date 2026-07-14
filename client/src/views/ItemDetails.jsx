@@ -179,7 +179,7 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
         {/* Left side/top: Photo */}
         <div className="w-full md:w-1/3 aspect-video md:aspect-auto md:min-h-[160px] bg-slate-900 flex items-center justify-center relative border-b md:border-b-0 md:border-r border-slate-800/60">
           {itemImageSrc ? (
-            <img src={itemImageSrc} alt={item.name} className="w-full h-full object-cover" />
+            <img src={itemImageSrc} alt={item.name || 'Untitled Item'} className="w-full h-full object-cover" />
           ) : (
             <Package className="w-12 h-12 text-slate-700 stroke-1" />
           )}
@@ -189,7 +189,7 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
         <div className="p-6 flex-1 flex flex-col justify-between relative">
           <div className="space-y-3">
             <h1 className="text-xl font-bold tracking-tight text-slate-100 flex items-center gap-2">
-              {item.name}
+              {item.name || 'Untitled Item'}
             </h1>
 
             {/* Clickable bin + location pill */}

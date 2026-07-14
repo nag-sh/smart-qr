@@ -283,9 +283,12 @@ app.get('/api/bins/:qr_id', async (req, res) => {
 app.post('/api/bins', upload.single('image'), async (req, res) => {
   try {
     const { qr_id, name, location } = req.body;
-    if (!qr_id || !name || !location) {
-      return res.status(400).json({ success: false, message: 'Missing required fields: qr_id, name, location' });
+    if (!qr_id) {
+      return res.status(400).json({ success: false, message: 'Missing required field: qr_id' });
     }
+
+    const binName = name !== undefined ? name : '';
+    const binLocation = location !== undefined ? location : '';
 
     const db = getDb();
     // Check if bin with qr_id already exists
@@ -305,9 +308,9 @@ app.post('/api/bins', upload.single('image'), async (req, res) => {
         owner: 'dion',
         entity_type: 'bin',
         entity_id: id,
-        entity_name: name,
+        entity_name: binName,
         qr_id: qr_id,
-        location: location,
+        location: binLocation,
         created_at
       });
       if (embedded) image_url = embedded;
@@ -316,9 +319,9 @@ app.post('/api/bins', upload.single('image'), async (req, res) => {
     await db.run(`
       INSERT INTO bins (id, qr_id, name, location, image_url)
       VALUES (?, ?, ?, ?, ?)
-    `, id, qr_id, name, location, image_url);
+    `, id, qr_id, binName, binLocation, image_url);
 
-    await saveAuditEntry(db, 'CREATE_BIN', `Created bin '${name}'`);
+    await saveAuditEntry(db, 'CREATE_BIN', `Created bin '${binName}'`);
 
     const newBin = await db.get('SELECT * FROM bins WHERE id = ?', id);
     res.status(201).json({ success: true, bin: newBin });
@@ -352,23 +355,26 @@ app.put('/api/bins/:id', upload.single('image'), async (req, res) => {
         owner: 'dion',
         entity_type: 'bin',
         entity_id: id,
-        entity_name: name || existingBin.name,
+        entity_name: name !== undefined ? name : existingBin.name,
         qr_id: existingBin.qr_id,
-        location: location || existingBin.location,
+        location: location !== undefined ? location : existingBin.location,
         created_at: new Date().toISOString()
       });
       if (embedded) image_url = embedded;
     }
 
+    const updatedName = name !== undefined ? name : existingBin.name;
+    const updatedLocation = location !== undefined ? location : existingBin.location;
+
     await db.run(
       `UPDATE bins SET name = ?, location = ?, image_url = ? WHERE id = ?`,
-      name || existingBin.name,
-      location || existingBin.location,
+      updatedName,
+      updatedLocation,
       image_url,
       id
     );
 
-    await saveAuditEntry(db, 'EDIT_BIN', `Edited bin '${name || existingBin.name}'`);
+    await saveAuditEntry(db, 'EDIT_BIN', `Edited bin '${updatedName}'`);
 
     const updatedBin = await db.get('SELECT * FROM bins WHERE id = ?', id);
     res.json({ success: true, bin: updatedBin });
@@ -478,9 +484,11 @@ app.get('/api/bins', async (req, res) => {
 app.post('/api/items', upload.single('image'), async (req, res) => {
   try {
     const { bin_id, name, description, search_tags, visible_text } = req.body;
-    if (!bin_id || !name) {
-      return res.status(400).json({ success: false, message: 'Missing required fields: bin_id, name' });
+    if (!bin_id) {
+      return res.status(400).json({ success: false, message: 'Missing required field: bin_id' });
     }
+
+    const itemName = name !== undefined ? name : '';
 
     const db = getDb();
     // Validate bin_id exists
@@ -515,7 +523,7 @@ app.post('/api/items', upload.single('image'), async (req, res) => {
         owner: 'dion',
         entity_type: 'item',
         entity_id: id,
-        entity_name: name,
+        entity_name: itemName,
         bin_id: bin_id,
         bin_name: bin.name,
         location: bin.location,
@@ -528,9 +536,9 @@ app.post('/api/items', upload.single('image'), async (req, res) => {
     await db.run(`
       INSERT INTO items (id, bin_id, name, description, image_url, search_tags, visible_text)
       VALUES (?, ?, ?, ?, ?, ?, ?)
-    `, id, bin_id, name, description || '', image_url, tagsString, visible_text || '');
+    `, id, bin_id, itemName, description || '', image_url, tagsString, visible_text || '');
 
-    await saveAuditEntry(db, 'CREATE_ITEM', `Added item '${name}' to bin '${bin.name}'`);
+    await saveAuditEntry(db, 'CREATE_ITEM', `Added item '${itemName}' to bin '${bin.name}'`);
 
     const newItem = await db.get('SELECT * FROM items WHERE id = ?', id);
     const parsedItem = {

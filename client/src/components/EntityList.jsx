@@ -182,7 +182,7 @@ function EntityList({
                 {entry.image_url ? (
                   <EntityImage
                     url={entry.image_url}
-                    alt={entry.name}
+                    alt={entry.name || 'Untitled Bin'}
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -193,10 +193,10 @@ function EntityList({
                 </span>
               </div>
               <div className="p-4 space-y-1.5">
-                <h3 className="font-bold text-sm text-slate-100 truncate">{entry.name}</h3>
+                <h3 className="font-bold text-sm text-slate-100 truncate">{entry.name || 'Untitled Bin'}</h3>
                 <button type="button" onClick={(e) => { e.stopPropagation(); onLocationClick?.(entry.location); }} className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-purple-300 transition-colors cursor-pointer">
                   <MapPin className="w-3.5 h-3.5 text-pink-400 shrink-0" />
-                  <span className="truncate">{entry.location}</span>
+                  <span className="truncate">{entry.location || 'Unknown Location'}</span>
                 </button>
               </div>
             </>
@@ -207,7 +207,7 @@ function EntityList({
                 {entry.image_url ? (
                   <EntityImage
                     url={entry.image_url}
-                    alt={entry.name}
+                    alt={entry.name || 'Untitled Item'}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
                 ) : (
@@ -219,18 +219,18 @@ function EntityList({
                   >
                     <span className="flex items-center gap-1 font-medium truncate max-w-[65%]">
                       <Box className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                      <span className="truncate">{entry.bin_name}</span>
+                      <span className="truncate">{entry.bin_name || 'Untitled Bin'}</span>
                     </span>
                     <span className="flex items-center gap-0.5 text-slate-400 truncate max-w-[35%]">
                       <MapPin className="w-3 h-3 text-pink-400 shrink-0" />
-                      <span className="truncate">{entry.bin_location}</span>
+                      <span className="truncate">{entry.bin_location || 'Unknown Location'}</span>
                     </span>
                   </button>
                 </div>
                 <div className="p-4 space-y-1.5">
-                  <h3 className="font-bold text-sm text-slate-100 leading-snug line-clamp-1">{entry.name}</h3>
+                  <h3 className="font-bold text-sm text-slate-100 leading-snug line-clamp-1">{entry.name || 'Untitled Item'}</h3>
                   <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
-                    {entry.description || 'No description provided.'}
+                    {entry.description || 'No description'}
                   </p>
                 </div>
               </div>
@@ -280,7 +280,7 @@ function EntityList({
               {entry.image_url ? (
                 <EntityImage
                   url={entry.image_url}
-                  alt={entry.name}
+                    alt={entry.name || 'Untitled Item'}
                   className="w-full h-full object-cover"
                 />
               ) : (
@@ -288,15 +288,15 @@ function EntityList({
               )}
             </div>
             <div className="min-w-0">
-              <h3 className="font-bold text-sm text-slate-200 truncate">{entry.name}</h3>
+              <h3 className="font-bold text-sm text-slate-200 truncate">{entry.name || (entry.type === 'bin' ? 'Untitled Bin' : 'Untitled Item')}</h3>
               {entry.type === 'bin' ? (
                 <button type="button" onClick={(e) => { e.stopPropagation(); onLocationClick?.(entry.location); }} className="flex items-center gap-1 mt-0.5 text-[10px] text-slate-500 hover:text-purple-300 transition-colors cursor-pointer">
                   <MapPin className="w-3 h-3 text-pink-400 shrink-0" />
-                  <span className="truncate">{entry.location}</span>
+                  <span className="truncate">{entry.location || 'Unknown Location'}</span>
                 </button>
               ) : (
                 <p className="text-[11px] text-slate-500 truncate mt-0.5 max-w-[200px] sm:max-w-md">
-                  {entry.description || 'No description provided.'}
+                  {entry.description || 'No description'}
                 </p>
               )}
             </div>
@@ -316,11 +316,11 @@ function EntityList({
                 <div className="flex flex-col items-end gap-0.5">
                   <span className="text-[10px] font-bold text-purple-300 flex items-center gap-1">
                     <Box className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                    {entry.bin_name}
+                    {entry.bin_name || 'Untitled Bin'}
                   </span>
                   <button type="button" onClick={(e) => { e.stopPropagation(); onLocationClick?.(entry.bin_location); }} className="text-[9px] text-slate-500 flex items-center gap-0.5 hover:text-purple-300 transition-colors cursor-pointer">
                     <MapPin className="w-2.5 h-2.5 text-pink-400" />
-                    {entry.bin_location}
+                    {entry.bin_location || 'Unknown Location'}
                   </button>
                 </div>
                 {entry.search_tags && entry.search_tags.length > 0 && (
@@ -364,7 +364,7 @@ function EntityList({
           {entry.image_url ? (
             <EntityImage
               url={entry.image_url}
-              alt={entry.name}
+              alt={entry.name || 'Untitled Item'}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             />
           ) : (
@@ -375,12 +375,12 @@ function EntityList({
           )}
 
           <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent flex flex-col justify-end text-left">
-            <h3 className="font-bold text-xs text-slate-100 truncate leading-snug">{entry.name}</h3>
+            <h3 className="font-bold text-xs text-slate-100 truncate leading-snug">{entry.name || (entry.type === 'bin' ? 'Untitled Bin' : 'Untitled Item')}</h3>
             {entry.type === 'bin' ? (
               <div className="flex items-center justify-between gap-2 mt-0.5">
                 <span className="text-[9px] text-slate-400 truncate flex items-center gap-0.5">
                   <MapPin className="w-2.5 h-2.5 text-pink-400 shrink-0" />
-                  <span className="truncate">{entry.location}</span>
+                  <span className="truncate">{entry.location || 'Unknown Location'}</span>
                 </span>
                 <span className="text-[9px] font-bold text-purple-300 shrink-0 leading-none">
                   {entry.item_count} items
