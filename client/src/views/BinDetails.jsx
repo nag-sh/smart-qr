@@ -9,6 +9,8 @@ import { getBin, getBins, updateBin, deleteBin, batchManageItems } from '../serv
 import imageCompression from 'browser-image-compression';
 import EntityList from '../components/EntityList';
 import useImageSrc from '../hooks/useImageSrc';
+import LocationPicker from '../components/LocationPicker';
+import MessageBanner from '../components/MessageBanner';
 
 export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, modalTypes, refreshNonce }) {
   const [bin, setBin] = useState(null);
@@ -25,6 +27,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
   const [savingBin, setSavingBin] = useState(false);
   const [allLocations, setAllLocations] = useState([]);
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const binFileRef = useRef(null);
 
   // 2. Delete/Batch state
@@ -34,6 +37,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
   const [batchAction, setBatchAction] = useState('reassign'); // 'reassign' | 'delete'
   const [batchTargetBin, setBatchTargetBin] = useState('');
   const [batchWorking, setBatchWorking] = useState(false);
+  const [batchError, setBatchError] = useState('');
 
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const [showQrView, setShowQrView] = useState(false);
@@ -179,6 +183,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
 
   const handleSaveBin = async () => {
     setSavingBin(true);
+    setSaveError('');
     try {
       const updated = await updateBin(bin.id, {
         name: editBinName.trim(),
@@ -188,7 +193,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
       setEditingBin(false);
       fetchBinDetails();
     } catch (err) {
-      alert(err.message || 'Failed to update bin');
+      setSaveError(err.message || 'Failed to update bin');
     } finally {
       setSavingBin(false);
     }
@@ -217,6 +222,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
   const handleBatchApply = async () => {
     if (selectedItems.size === 0) return;
     setBatchWorking(true);
+    setBatchError('');
     try {
       await batchManageItems(bin.id, batchAction, Array.from(selectedItems), batchTargetBin);
       onBack();
@@ -228,7 +234,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
         fetchBinDetails();
       }
     } catch (err) {
-      alert(err.message || 'Failed batch action');
+      setBatchError(err.message || 'Failed batch action');
     } finally {
       setBatchWorking(false);
     }
@@ -345,78 +351,27 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Location</label>
-                <div className="relative">
-                  <input 
-                    type="text" 
-                    value={editBinLocation} 
-                    onChange={(e) => {
-                      setEditBinLocation(e.target.value);
-                      setShowLocationDropdown(true);
-                    }}
-                    onFocus={() => setShowLocationDropdown(true)}
-                    className="w-full px-4 py-3 rounded-xl glass-input text-sm text-slate-100" 
-                  />
-
-                  {/* Click outside to close helper */}
-                  {showLocationDropdown && allLocations.length > 5 && (
-                    <div 
-                      className="fixed inset-0 z-30" 
-                      onClick={() => setShowLocationDropdown(false)}
-                    />
-                  )}
-
-                  {/* Dropdown for excessive locations count (> 5) */}
-                  {showLocationDropdown && allLocations.length > 5 && (
-                    <div className="absolute left-0 right-0 mt-1 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl z-40 max-h-48 overflow-y-auto">
-                      {allLocations
-                        .filter(loc => loc.toLowerCase().includes(editBinLocation.toLowerCase()))
-                        .map(loc => (
-                          <button
-                            key={loc}
-                            type="button"
-                            onClick={() => {
-                              setEditBinLocation(loc);
-                              setShowLocationDropdown(false);
-                            }}
-                            className="w-full px-4 py-2.5 text-left text-xs text-slate-355 hover:bg-purple-600/25 hover:text-white transition-colors block"
-                          >
-                            {loc}
-                          </button>
-                        ))}
-                      {allLocations.filter(loc => loc.toLowerCase().includes(editBinLocation.toLowerCase())).length === 0 && (
-                        <div className="px-4 py-2.5 text-xs text-slate-500 italic">No matching locations. Keep typing to add new.</div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Inline clickable list for smaller locations count (<= 5) */}
-                {allLocations.length > 0 && allLocations.length <= 5 && (
-                  <div className="mt-2.5 space-y-1.5">
-                    <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Saved Locations:</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {allLocations.map(loc => (
-                        <button
-                          key={loc}
-                          type="button"
-                          onClick={() => setEditBinLocation(loc)}
-                          className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-bold cursor-pointer transition-all active:scale-95 ${
-                            editBinLocation.toLowerCase() === loc.toLowerCase()
-                              ? 'bg-purple-550/20 border-purple-500/40 text-purple-300'
-                              : 'bg-slate-950/45 border-slate-850 hover:border-slate-700 text-slate-400 hover:text-slate-200'
-                          }`}
-                        >
-                          {loc}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <LocationPicker
+                inputCls="w-full px-4 py-3 rounded-xl glass-input text-sm text-slate-100"
+                labelCls="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2"
+                dropdownItemCls="w-full px-4 py-2.5 text-left text-xs text-slate-355 hover:bg-purple-600/25 hover:text-white transition-colors block"
+                value={editBinLocation}
+                onChange={setEditBinLocation}
+                onFocus={() => setShowLocationDropdown(true)}
+                allLocations={allLocations}
+                showDropdown={showLocationDropdown}
+                setShowDropdown={setShowLocationDropdown}
+                label="Location"
+                savedLocationsLabel="Saved Locations:"
+              />
             </div>
           </div>
+
+          {saveError && (
+            <MessageBanner type="error" className="mt-2">
+              {saveError}
+            </MessageBanner>
+          )}
 
           <div className="flex gap-2 justify-end pt-2">
             <button
@@ -654,6 +609,12 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
                   </select>
                 )}
               </div>
+
+              {batchError && (
+                <MessageBanner type="error" className="mt-2">
+                  {batchError}
+                </MessageBanner>
+              )}
 
               <div className="flex gap-2">
                 <button
