@@ -8,11 +8,7 @@ import { blobToDataURL } from './localImages.js';
  */
 export async function saveBackup(blob, filename, mimeType = 'application/zip') {
   const base64 = (await blobToDataURL(blob)).split(',')[1];
-  try {
-    await SaveAs.saveFile({ filename, data: base64, mimeType });
-  } catch (err) {
-    console.error('Save backup failed:', err);
-  }
+  await SaveAs.saveFile({ filename, data: base64, mimeType });
 }
 
 /**
@@ -20,17 +16,11 @@ export async function saveBackup(blob, filename, mimeType = 'application/zip') {
  */
 export async function shareBackup(blob, filename, mimeType = 'application/zip') {
   if (!Capacitor.isNativePlatform()) {
-    alert('Sharing files is not available in the browser.');
-    return;
+    throw new Error('Sharing files is not available in the browser.');
   }
 
   const base64 = (await blobToDataURL(blob)).split(',')[1];
-  try {
-    await SaveAs.shareFile({ filename, data: base64, mimeType });
-  } catch (err) {
-    console.error('Native share failed:', err);
-    alert('Failed to share backup: ' + (err?.message || 'Unknown error'));
-  }
+  await SaveAs.shareFile({ filename, data: base64, mimeType });
 }
 
 /**
