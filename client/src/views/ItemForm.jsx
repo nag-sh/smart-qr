@@ -183,36 +183,32 @@ export default function ItemForm({
 
   const processAndAnalyzeImage = async (file) => {
     setError('');
-    setCompressing(true);
 
+    // First capture in create mode (no image yet) with a known bin: hand off
+    // immediately. Store the raw capture and navigate now so the details screen
+    // opens with no pre-navigation lag; compression + item creation run in the
+    // background on the details screen (a File cannot travel through URL params).
+    if (isCreate && !imageFile) {
+      const targetBinId = initialBinId || selectedBinId;
+      if (targetBinId) {
+        stopInlineCamera();
+        setPendingCreate(file);
+        onNavigate('item-details', {
+          pendingCreate: true,
+          binId: targetBinId,
+          autoAnalyze: !!apiKey
+        });
+        return;
+      }
+      // No bin yet: fall through to preview + form so the user can pick a bin.
+    }
+
+    setCompressing(true);
     try {
       const compressed = await compressImage(file, { maxSizeMB: 0.2 });
       setImageFile(compressed);
       if (imagePreview) URL.revokeObjectURL(imagePreview);
       setImagePreview(URL.createObjectURL(compressed));
-
-      // First capture in create mode (no image yet): create the item now and
-      // hand off to ItemDetails, which runs the AI analysis and auto-populates
-      // the fields. This gives an immediate "snap -> details" flow instead of
-      // analyzing in place and lingering on the form.
-      if (isCreate && !imageFile) {
-        const targetBinId = initialBinId || selectedBinId;
-        if (targetBinId) {
-          // Hand the captured image to ItemDetails via an in-memory holder and
-          // navigate now, so the details screen opens immediately. Modal params
-          // are URL-serialized and cannot carry a File, so ItemDetails creates
-          // the item from the held image in the background, then runs analysis.
-          setPendingCreate(compressed);
-          onNavigate('item-details', {
-            pendingCreate: true,
-            binId: targetBinId,
-            autoAnalyze: !!apiKey
-          });
-          return;
-        }
-        // No bin chosen yet: stay in the form so the user can pick one.
-        return;
-      }
 
       if (apiKey) {
         setAiAnalyzing(true);

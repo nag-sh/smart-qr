@@ -7,6 +7,7 @@ import { takePendingCreate } from '../services/pendingCreate';
 import useImageSrc from '../hooks/useImageSrc';
 import { analyzeItemImage } from '../services/gemini';
 import { getImageBlob, isImageRef } from '../services/localImages';
+import { compressImage } from '../utils/imageCompression';
 import BackButton from '../components/BackButton';
 import MessageBanner from '../components/MessageBanner';
 
@@ -52,33 +53,46 @@ export default function ItemDetails({
   const autoAnalyzeStarted = useRef(false);
 
   // A File cannot travel through URL-serialized modal params, so ItemForm stashes
-  // the captured image in a module-level holder; we consume it here to create the item.
+  // the captured image in a module-level holder; we compress + create the item here
+  // (background) and own the loading state for the whole handoff so it can't stick.
   useEffect(() => {
     if (!pendingCreate || resolvedItemId) return;
     let cancelled = false;
     (async () => {
+      setLoading(true);
+      setError('');
       const file = takePendingCreate();
       if (!file) {
-        if (!cancelled) setError('Captured image was lost. Please try adding the item again.');
+        if (!cancelled) {
+          setError('Captured image was lost. Please try adding the item again.');
+          setLoading(false);
+        }
         return;
       }
       try {
-        const created = await createItem(binId, '', '', [], '', file);
-        if (!cancelled) setResolvedItemId(created.id);
+        const compressed = await compressImage(file, { maxSizeMB: 0.2 });
+        const created = await createItem(binId, '', '', [], '', compressed);
+        if (cancelled) return;
+        setResolvedItemId(created.id);
+        const items = await searchItems('');
+        const found = items.find((i) => i.id === created.id);
+        if (!cancelled) {
+          setItem(found || null);
+          setLoading(false);
+        }
       } catch (err) {
         console.error(err);
-        if (!cancelled) setError(err.message || 'Failed to create item.');
+        if (!cancelled) {
+          setError(err.message || 'Failed to create item.');
+          setLoading(false);
+        }
       }
     })();
     return () => { cancelled = true; };
   }, [pendingCreate, binId, resolvedItemId]);
 
   useEffect(() => {
-    if (pendingCreate && !resolvedItemId) {
-      setLoading(true);
-      setError('');
-      return;
-    }
+    if (pendingCreate) return; // creation effect owns loading + item for the handoff
     if (!resolvedItemId) {
       setLoading(false);
       setError('Item ID is missing');
