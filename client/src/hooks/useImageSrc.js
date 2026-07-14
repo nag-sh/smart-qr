@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { isImageRef, resolveImageUrl } from '../services/localImages';
+import { isImageRef, resolveImageUrl, releaseImageUrl } from '../services/localImages';
 
 export default function useImageSrc(value) {
   const [src, setSrc] = useState(null);
@@ -14,11 +14,13 @@ export default function useImageSrc(value) {
       return;
     }
     let cancelled = false;
-    resolveImageUrl(value).then((url) => {
+    const currentRef = value;
+    resolveImageUrl(currentRef).then((url) => {
       if (!cancelled) setSrc(url);
     });
     return () => {
       cancelled = true;
+      releaseImageUrl(currentRef);
     };
   }, [value]);
 

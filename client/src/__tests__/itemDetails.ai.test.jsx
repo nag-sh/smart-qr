@@ -21,6 +21,7 @@ vi.mock('../services/localImages', () => ({
   isImageRef: vi.fn((value) => typeof value === 'string' && value.startsWith('img_')),
   getImageBlob: vi.fn(),
   resolveImageUrl: vi.fn((value) => Promise.resolve(value)),
+  releaseImageUrl: vi.fn(),
   storeImage: vi.fn(),
   deleteImage: vi.fn(),
   refToDataURL: vi.fn(),

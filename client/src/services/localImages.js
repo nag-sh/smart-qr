@@ -130,13 +130,66 @@ export async function refToDataURL(refKey) {
 }
 
 const objectUrlCache = new Map();
+const MAX_CACHE_SIZE = 50;
+
+function evictIfNeeded() {
+  if (objectUrlCache.size < MAX_CACHE_SIZE) return;
+  let oldest = null;
+  for (const [key, entry] of objectUrlCache) {
+    if (entry.refs === 0) {
+      oldest = key;
+      break;
+    }
+    if (!oldest || entry.lastUsed < objectUrlCache.get(oldest).lastUsed) {
+      oldest = key;
+    }
+  }
+  if (oldest) {
+    const entry = objectUrlCache.get(oldest);
+    if (entry.url) URL.revokeObjectURL(entry.url);
+    objectUrlCache.delete(oldest);
+  }
+}
 
 export async function resolveImageUrl(refKey) {
   if (!isImageRef(refKey)) return refKey;
-  if (objectUrlCache.has(refKey)) return objectUrlCache.get(refKey);
-  const blob = await getImageBlob(refKey);
-  if (!blob) return null;
-  const url = URL.createObjectURL(blob);
-  objectUrlCache.set(refKey, url);
-  return url;
+
+  const existing = objectUrlCache.get(refKey);
+  if (existing) {
+    existing.refs += 1;
+    existing.lastUsed = Date.now();
+    if (existing.promise) {
+      await existing.promise;
+    }
+    return existing.url;
+  }
+
+  evictIfNeeded();
+  const entry = { refs: 1, lastUsed: Date.now(), url: null, promise: null };
+  objectUrlCache.set(refKey, entry);
+
+  const promise = getImageBlob(refKey).then((blob) => {
+    const current = objectUrlCache.get(refKey);
+    if (!current || current.refs <= 0) {
+      return null;
+    }
+    if (!blob) return null;
+    current.url = URL.createObjectURL(blob);
+    current.promise = null;
+    return current.url;
+  });
+
+  entry.promise = promise;
+  return promise;
+}
+
+export function releaseImageUrl(refKey) {
+  if (!isImageRef(refKey)) return;
+  const entry = objectUrlCache.get(refKey);
+  if (!entry) return;
+  entry.refs -= 1;
+  if (entry.refs <= 0) {
+    if (entry.url) URL.revokeObjectURL(entry.url);
+    objectUrlCache.delete(refKey);
+  }
 }

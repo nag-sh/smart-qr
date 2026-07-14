@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search as SearchIcon, MapPin, QrCode, LayoutGrid, List, Image as ImageIcon, Box, Package, Filter as FilterIcon, Tag, Trash2, Move, RefreshCw, Check, X, ArrowLeft, Settings as SettingsIcon } from 'lucide-react';
+import { Search as SearchIcon, MapPin, QrCode, Box, Package, Filter as FilterIcon, Tag, Trash2, Move, RefreshCw, Check, X, Settings as SettingsIcon } from 'lucide-react';
 import { getBins, searchItems, batchDeleteBins, batchUpdateBinLocations, batchDeleteItems, batchMoveItems } from '../services/storage';
 import EntityList from '../components/EntityList';
+import BackButton from '../components/BackButton';
+import LayoutModeToggle from '../components/LayoutModeToggle';
 
 export default function Search({ onNavigate, onBack, modalTypes }) {
   const [query, setQuery] = useState('');
@@ -71,10 +73,6 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
       setSelectedBins(new Set());
     }
   };
-
-  useEffect(() => {
-    localStorage.setItem('view_mode_search', layoutMode);
-  }, [layoutMode]);
 
   useEffect(() => {
     try {
@@ -507,44 +505,12 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
       )}
 
       <div className="flex items-center justify-between gap-2">
-        <div className="flex bg-slate-900/60 p-1 rounded-xl border border-slate-800/80 gap-1 shrink-0">
-          <button
-            onClick={() => setLayoutMode('thumbnail')}
-            className={`p-2.5 rounded-lg transition-colors cursor-pointer ${
-              layoutMode === 'thumbnail'
-                ? 'bg-purple-600 text-white shadow shadow-purple-950/20'
-                : 'text-slate-500 hover:text-slate-300'
-            }`}
-            title="Thumbnail Grid Mode"
-            aria-label="Thumbnail Grid Mode"
-          >
-            <LayoutGrid className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => setLayoutMode('detailed')}
-            className={`p-2.5 rounded-lg transition-colors cursor-pointer ${
-              layoutMode === 'detailed'
-                ? 'bg-purple-600 text-white shadow shadow-purple-950/20'
-                : 'text-slate-500 hover:text-slate-300'
-            }`}
-            title="Detailed List Mode"
-            aria-label="Detailed List Mode"
-          >
-            <List className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => setLayoutMode('gallery')}
-            className={`p-2.5 rounded-lg transition-colors cursor-pointer ${
-              layoutMode === 'gallery'
-                ? 'bg-purple-600 text-white shadow shadow-purple-950/20'
-                : 'text-slate-500 hover:text-slate-300'
-            }`}
-            title="Gallery Mode"
-            aria-label="Gallery Mode"
-          >
-            <ImageIcon className="w-5 h-5" />
-          </button>
-        </div>
+        <LayoutModeToggle
+          mode={layoutMode}
+          onChange={setLayoutMode}
+          storageKey="view_mode_search"
+          variant="search"
+        />
 
         <div className="flex items-center gap-2 shrink-0">
           <button
@@ -718,14 +684,11 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3">
-              <button
+              <BackButton
                 onClick={onBack}
-                className="p-2 -ml-1 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
-                title="Back to Search"
+                className="-ml-1"
                 aria-label="Back to Search"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
+              />
               <div>
                 <h2 className="text-base font-bold text-slate-200">Quick Add</h2>
                 <p className="text-xs text-slate-400">Choose what to create next.</p>
@@ -798,14 +761,10 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-4 border-b border-slate-800/60 shrink-0">
-              <button
+              <BackButton
                 onClick={onBack}
-                className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
-                title="Back to Search"
                 aria-label="Back to Search"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
+              />
               <h2 className="text-base font-bold text-slate-200">Filters</h2>
               <button
                 onClick={onBack}

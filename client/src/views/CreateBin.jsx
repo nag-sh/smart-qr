@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Box, MapPin, Camera, AlertCircle, RefreshCw, Save, ArrowLeft, QrCode, Sparkles, CheckCircle2, ArrowRight, Printer, SwitchCamera } from 'lucide-react';
-import imageCompression from 'browser-image-compression';
+import { Box, MapPin, Camera, RefreshCw, Save, QrCode, Sparkles, CheckCircle2, ArrowRight, Printer, SwitchCamera } from 'lucide-react';
+import BackButton from '../components/BackButton';
+import MessageBanner from '../components/MessageBanner';
+import { compressImage } from '../utils/imageCompression';
 import { createBin, getBins } from '../services/storage';
 import { useCameraDevices } from '../hooks/useCameraDevices';
 
@@ -184,13 +186,7 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
     setCompressing(true);
     setError('');
     try {
-      const options = {
-        maxSizeMB: 0.25,
-        maxWidthOrHeight: 1024,
-        useWebWorker: true
-      };
-      
-      const compressed = await imageCompression(file, options);
+      const compressed = await compressImage(file);
       setImageFile(compressed);
       
       if (imagePreview) {
@@ -262,12 +258,10 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
         <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-600/10 rounded-full blur-3xl"></div>
 
         <div className="flex items-center gap-3">
-          <button
+          <BackButton
             onClick={() => onBack()}
-            className="p-2 -ml-1 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
+            className="-ml-1"
+          />
           <div className="flex items-center gap-3">
             <div className="p-3 bg-purple-500/10 rounded-full text-purple-400">
               <QrCode className="w-8 h-8" />
@@ -334,13 +328,11 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
         <div className="absolute -top-24 -right-24 w-48 h-48 bg-emerald-600/10 rounded-full blur-3xl"></div>
 
         <div className="flex items-center gap-3">
-          <button
+          <BackButton
             onClick={() => onBack()}
-            className="p-2 -ml-1 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+            className="-ml-1"
             aria-label="Back to Search"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
+          />
         </div>
 
         <div className="space-y-2">
@@ -408,7 +400,7 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
       <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-600/10 rounded-full blur-3xl pointer-events-none"></div>
 
       <div className="p-5 flex items-center gap-3 border-b border-slate-800/50">
-        <button
+        <BackButton
           onClick={() => {
             if (qrId) {
               onNavigate('scanner');
@@ -417,10 +409,8 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
               setGenerateMode(false);
             }
           }}
-          className="p-2 -ml-1 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
+          className="-ml-1"
+        />
         <div className="flex items-center gap-2.5">
           <div className="p-2.5 bg-purple-500/10 rounded-xl text-purple-400">
             <Box className="w-5 h-5" />
@@ -654,10 +644,12 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
         </div>
 
         {error && (
-          <div className="p-3.5 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2 text-xs text-red-300">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>{error}</span>
-          </div>
+          <MessageBanner
+            type="error"
+            message={error}
+            className="p-3.5 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2 text-xs text-red-300"
+            iconClassName="w-4 h-4 shrink-0 mt-0.5"
+          />
         )}
 
         <button

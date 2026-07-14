@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Box, MapPin, QrCode, Plus, AlertCircle, RefreshCw, ArrowLeft, 
+  Box, MapPin, QrCode, Plus, AlertCircle, RefreshCw, 
   Package, Printer, Edit, Trash2, Check, MoreHorizontal,
   FolderTree, LayoutGrid, List, Image as ImageIcon
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { getBin, getBins, updateBin, deleteBin, batchManageItems } from '../services/storage';
-import imageCompression from 'browser-image-compression';
+import { compressImage } from '../utils/imageCompression';
 import EntityList from '../components/EntityList';
+import BackButton from '../components/BackButton';
+import LayoutModeToggle from '../components/LayoutModeToggle';
 import useImageSrc from '../hooks/useImageSrc';
 
 export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, modalTypes, refreshNonce }) {
@@ -125,10 +127,6 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
     setVisibleItemsCount(12);
   }, [binId, layoutMode]);
 
-  useEffect(() => {
-    localStorage.setItem('view_mode_bin_items', layoutMode);
-  }, [layoutMode]);
-
   if (loading) {
     return (
       <div className="w-full max-w-4xl mx-auto py-12 text-center space-y-4">
@@ -141,12 +139,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
   if (error || !bin) {
     return (
       <div className="w-full max-w-4xl mx-auto py-6 px-4 space-y-4">
-        <button
-          onClick={() => onBack()}
-          className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
+        <BackButton onClick={() => onBack()} />
         <div className="glass-panel rounded-3xl p-6 text-center space-y-4">
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto" />
           <div>
@@ -167,8 +160,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
 
   const handleProcessBinImage = async (file) => {
     try {
-      const options = { maxSizeMB: 0.25, maxWidthOrHeight: 1024, useWebWorker: true };
-      const compressed = await imageCompression(file, options);
+      const compressed = await compressImage(file);
       setEditBinImageFile(compressed);
       if (editBinImagePreview) URL.revokeObjectURL(editBinImagePreview);
       setEditBinImagePreview(URL.createObjectURL(compressed));
@@ -238,12 +230,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
     <div className="w-full max-w-4xl min-w-[min(80vw,56rem)] mx-auto py-6 px-4 space-y-6">
       {/* Navigation header */}
       <div className="flex items-center justify-between">
-        <button
-          onClick={() => onBack()}
-          className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
+        <BackButton onClick={() => onBack()} />
         
           <div className="flex items-center gap-2">
             <button
@@ -488,41 +475,12 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
           </h2>
 
           {items.length > 0 && (
-            <div className="flex bg-slate-900/60 p-1 rounded-xl border border-slate-800/80 gap-1.5 shrink-0">
-              <button
-                onClick={() => setLayoutMode('thumbnail')}
-                className={`p-2 rounded-lg transition-colors cursor-pointer ${
-                  layoutMode === 'thumbnail'
-                    ? 'bg-purple-655 text-white shadow shadow-purple-900/20'
-                    : 'text-slate-505 hover:text-slate-300'
-                }`}
-                title="Thumbnail Grid"
-              >
-                <LayoutGrid className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => setLayoutMode('detailed')}
-                className={`p-2 rounded-lg transition-colors cursor-pointer ${
-                  layoutMode === 'detailed'
-                    ? 'bg-purple-655 text-white shadow shadow-purple-900/20'
-                    : 'text-slate-550 hover:text-slate-300'
-                }`}
-                title="Detailed List"
-              >
-                <List className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => setLayoutMode('gallery')}
-                className={`p-2 rounded-lg transition-colors cursor-pointer ${
-                  layoutMode === 'gallery'
-                    ? 'bg-purple-655 text-white shadow shadow-purple-900/20'
-                    : 'text-slate-550 hover:text-slate-300'
-                }`}
-                title="Gallery Mode"
-              >
-                <ImageIcon className="w-5 h-5" />
-              </button>
-            </div>
+            <LayoutModeToggle
+              mode={layoutMode}
+              onChange={setLayoutMode}
+              storageKey="view_mode_bin_items"
+              variant="binDetails"
+            />
           )}
         </div>
 
@@ -564,13 +522,11 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
       {modalTypes?.includes('batch-manage') && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm pointer-events-auto">
           <div className="glass-panel w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-5 relative max-h-[90vh] flex flex-col justify-between">
-            <button
+            <BackButton
               onClick={() => onBack()}
-              className="absolute top-4 left-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              className="absolute top-4 left-4"
               aria-label="Back"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
+            />
 
             <div className="space-y-2">
               <h2 className="text-base font-bold text-slate-200 flex items-center gap-2">
@@ -686,14 +642,10 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
           >
             {/* Header: Back only, pushed below the Android status bar */}
             <div className="flex items-center justify-between pt-[max(env(safe-area-inset-top),2rem)] px-4">
-              <button
-                type="button"
+              <BackButton
                 onClick={() => setShowQrView(false)}
-                className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
                 aria-label="Back"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
+              />
             </div>
 
             {/* QR + full text + print (print centered beneath text) */}
