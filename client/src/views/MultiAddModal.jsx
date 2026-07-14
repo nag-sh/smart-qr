@@ -16,42 +16,18 @@ import InlineCamera from '../components/InlineCamera';
 import MessageBanner from '../components/MessageBanner';
 import { compressImage } from '../utils/imageCompression';
 import { analyzeItemImage } from '../services/gemini';
-import { createItem, deleteItem, batchDeleteItems } from '../services/storage';
+import { createItem, deleteItem, batchDeleteItems, getBins } from '../services/storage';
 import { retryWithBackoff, isRetryableError } from '../utils/retryWithBackoff';
 
 /**
- * Lazy image wrapper that uses a native IntersectionObserver to avoid rendering
- * off-screen roll thumbnails until they approach the viewport.
+ * Roll thumbnail. Blob URLs are cheap and the roll is uncapped, so the image is
+ * rendered directly rather than gated behind an IntersectionObserver — the observer
+ * left cards stuck on the placeholder inside the horizontal scroller.
  */
 function LazyThumbnail({ src, alt, className }) {
-  const [visible, setVisible] = useState(false);
-  const containerRef = useRef(null);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisible(true);
-          observer.disconnect();
-        }
-      },
-      { root: null, rootMargin: '100px', threshold: 0 },
-    );
-
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
   return (
-    <div ref={containerRef} className={className}>
-      {visible ? (
-        <img src={src} alt={alt} className="w-full h-full object-cover" />
-      ) : (
-        <div className="w-full h-full bg-slate-800 animate-pulse" />
-      )}
+    <div className={className}>
+      <img src={src} alt={alt} className="w-full h-full object-cover" />
     </div>
   );
 }
@@ -63,6 +39,10 @@ export default function MultiAddModal({ binId, onNavigate, onBack, refreshNonce 
   const inFlightRef = useRef(0);
   const queueRef = useRef([]);
   const fileInputRef = useRef(null);
+  const [selectedBinId, setSelectedBinId] = useState(binId || '');
+  const [binsList, setBinsList] = useState([]);
+  const [binsLoading, setBinsLoading] = useState(false);
+  const effectiveBinId = binId || selectedBinId;
 
   useEffect(() => {
     rollRef.current = roll;
@@ -75,6 +55,19 @@ export default function MultiAddModal({ binId, onNavigate, onBack, refreshNonce 
   useEffect(() => {
     refreshApiKey();
   }, [refreshApiKey, refreshNonce]);
+
+  useEffect(() => {
+    if (binId) return;
+    let mounted = true;
+    setBinsLoading(true);
+    getBins()
+      .then((list) => { if (mounted) setBinsList(list || []); })
+      .catch(() => {})
+      .finally(() => { if (mounted) setBinsLoading(false); });
+    return () => {
+      mounted = false;
+    };
+  }, [binId]);
 
   const setCard = useCallback((id, updater) => {
     setRoll((prev) =>
@@ -122,7 +115,7 @@ export default function MultiAddModal({ binId, onNavigate, onBack, refreshNonce 
           .filter(Boolean);
 
         const item = await createItem(
-          binId,
+          effectiveBinId,
           metadata.title || 'Untitled item',
           metadata.description || '',
           tags,
@@ -139,7 +132,7 @@ export default function MultiAddModal({ binId, onNavigate, onBack, refreshNonce 
         setCard(id, { status: 'failed', error: err.message || 'Failed to process item' });
       }
     },
-    [apiKey, binId, setCard, removeCard],
+    [apiKey, effectiveBinId, setCard, removeCard],
   );
 
   const runQueue = useCallback(() => {
@@ -244,6 +237,47 @@ export default function MultiAddModal({ binId, onNavigate, onBack, refreshNonce 
   }, []);
 
   const hasRoll = roll.length > 0;
+
+  if (!effectiveBinId) {
+    return (
+      <div className="w-full h-full flex flex-col bg-slate-950 text-slate-100">
+        <div className="p-4 flex items-center border-b border-slate-800/50 shrink-0">
+          <button
+            type="button"
+            onClick={onBack}
+            className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+            aria-label="Go back"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h1 className="ml-3 font-bold text-sm text-slate-200">Multi-Add</h1>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center p-6">
+          <Camera className="w-10 h-10 text-slate-600 mb-4" />
+          <h2 className="text-sm font-semibold text-slate-200 mb-1">Choose a bin</h2>
+          <p className="text-[11px] text-slate-400 mb-4 text-center max-w-xs">
+            Multi-add needs a destination bin. Pick one to start capturing.
+          </p>
+          {binsLoading ? (
+            <p className="text-[11px] text-slate-500">Loading bins...</p>
+          ) : binsList.length === 0 ? (
+            <p className="text-[11px] text-slate-500">No bins yet. Create one first.</p>
+          ) : (
+            <select
+              value={selectedBinId}
+              onChange={(e) => setSelectedBinId(e.target.value)}
+              className="w-full max-w-xs px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-200 text-sm cursor-pointer"
+            >
+              <option value="" disabled>Select a bin...</option>
+              {binsList.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}{b.location ? ` (${b.location})` : ''}</option>
+              ))}
+            </select>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-full flex flex-col bg-slate-950 text-slate-100">
