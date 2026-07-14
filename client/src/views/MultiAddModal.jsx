@@ -123,13 +123,13 @@ export default function MultiAddModal({ binId, onNavigate, onBack, refreshNonce 
           compressed,
         );
 
-        setCard(id, { status: 'success', item });
+        setCard(id, (card) => ({ ...card, status: 'success', item }));
       } catch (err) {
         if (abortController.signal.aborted) {
           removeCard(id);
           return;
         }
-        setCard(id, { status: 'failed', error: err.message || 'Failed to process item' });
+        setCard(id, (card) => ({ ...card, status: 'failed', error: err.message || 'Failed to process item' }));
       }
     },
     [apiKey, effectiveBinId, setCard, removeCard],
