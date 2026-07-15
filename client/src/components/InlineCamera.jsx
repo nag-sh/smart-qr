@@ -13,7 +13,6 @@ export default function InlineCamera(props) {
     uploadButtonLabel = 'Upload File',
     startingText = 'Camera starting...',
     unsupportedMessage = 'WebRTC camera not supported. Opening standard file selector.',
-    blockedMessage = 'Camera access blocked. Opening file selector...',
     showCapturedFrame = true
   } = props;
 
@@ -99,7 +98,7 @@ export default function InlineCamera(props) {
     return () => {
       cancelled = true;
     };
-  }, [useInlineCamera, cameraStream]);
+  }, [useInlineCamera, cameraStream, unsupportedMessage]);
 
   // Release the camera when the component unmounts (e.g., the modal is closed).
   // Toggling useInlineCamera to false also stops the tracks (above), but in
