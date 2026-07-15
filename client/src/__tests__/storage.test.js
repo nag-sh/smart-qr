@@ -23,7 +23,7 @@ vi.mock('../services/dbStore.js', () => ({
   migrateFromLocalStorage: vi.fn(async () => {})
 }));
 
-import { getStorageMode, setStorageMode, isLocalOnly, initStorage, getLocalExportData, restoreLocalData } from '../services/storage.js';
+import { getStorageMode, setStorageMode, isLocalOnly, initStorage, getLocalExportData, restoreLocalData, createBin } from '../services/storage.js';
 import { Capacitor } from '@capacitor/core';
 
 beforeEach(() => {
@@ -75,5 +75,25 @@ describe('local table helpers', () => {
     const data = await getLocalExportData();
     expect(data.bins).toEqual([{ id: 'b1' }]);
     expect(data.items).toEqual([{ id: 'i1' }]);
+  });
+});
+
+describe('createBin untitled fallback', () => {
+  it('assigns a generated "Untitled Bin-<suffix>" title when name is blank', async () => {
+    await initStorage();
+    const bin = await createBin('qr-untitled', '   ', 'Basement', null);
+    expect(bin.name).toMatch(/^Untitled Bin-[a-z0-9]{5}$/);
+  });
+
+  it('keeps an explicitly provided name', async () => {
+    await initStorage();
+    const bin = await createBin('qr-named', '  Tools  ', 'Garage', null);
+    expect(bin.name).toBe('Tools');
+  });
+
+  it('rejects duplicate QR ids', async () => {
+    await initStorage();
+    await createBin('qr-dup', 'First', 'Garage', null);
+    await expect(createBin('qr-dup', '', 'Garage', null)).rejects.toThrow(/already exists/);
   });
 });

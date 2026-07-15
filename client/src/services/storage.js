@@ -267,10 +267,23 @@ export async function getBin(idOrQr) {
   return { bin: data.bin, items: data.items };
 }
 
+function generateUntitledBinName() {
+  const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  const chars = new Uint32Array(5);
+  crypto.getRandomValues(chars);
+  let suffix = '';
+  for (let i = 0; i < 5; i++) {
+    suffix += alphabet[chars[i] % alphabet.length];
+  }
+  return `Untitled Bin-${suffix}`;
+}
+
 /**
  * 3. CREATE BIN
  */
 export async function createBin(qrId, name, location, imageFile) {
+  const finalName = (name || '').trim() || generateUntitledBinName();
+
   if (isLocalOnly()) {
     const bins = await getLocalTable('local_bins');
     
@@ -288,7 +301,7 @@ export async function createBin(qrId, name, location, imageFile) {
         app: 'smart-inventory',
         entity_type: 'bin',
         entity_id: id,
-        entity_name: (name || '').trim(),
+        entity_name: finalName,
         qr_id: qrId,
         location: (location || '').trim(),
         created_at: new Date().toISOString()
@@ -299,7 +312,7 @@ export async function createBin(qrId, name, location, imageFile) {
     const newBin = {
       id,
       qr_id: qrId,
-      name: (name || '').trim(),
+      name: finalName,
       location: (location || '').trim(),
       image_url,
       created_at: new Date().toISOString()
@@ -307,13 +320,13 @@ export async function createBin(qrId, name, location, imageFile) {
 
     bins.push(newBin);
     await setLocalTable('local_bins', bins);
-    await saveLocalAuditEntry('CREATE_BIN', `Created bin: ${(name || '').trim()}`);
+    await saveLocalAuditEntry('CREATE_BIN', `Created bin: ${finalName}`);
     return newBin;
   }
 
   const formData = new FormData();
   formData.append('qr_id', qrId);
-  formData.append('name', name.trim());
+  formData.append('name', finalName);
   formData.append('location', location.trim());
   if (imageFile) {
     formData.append('image', imageFile, 'bin.jpg');
