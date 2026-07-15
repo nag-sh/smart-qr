@@ -30,6 +30,12 @@ export default function InlineCamera(props) {
   const usingFrontCamera = useRef(false);
   const streamRef = useRef(null);
 
+  // Keep the latest onTriggerFilePicker without making it a dependency of the
+  // camera-start effect (see below) — otherwise every parent re-render (which
+  // recreates this inline callback) would cancel and restart getUserMedia.
+  const onTriggerFilePickerRef = useRef(onTriggerFilePicker);
+  onTriggerFilePickerRef.current = onTriggerFilePicker;
+
   // Stop camera tracks when the camera is hidden or the component unmounts.
   useEffect(() => {
     if (!useInlineCamera && cameraStream) {
@@ -54,7 +60,7 @@ export default function InlineCamera(props) {
 
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         console.error(unsupportedMessage);
-        onTriggerFilePicker();
+        onTriggerFilePickerRef.current();
         return;
       }
 
@@ -74,7 +80,7 @@ export default function InlineCamera(props) {
           });
         } catch (fallbackErr) {
           console.error('Failed to get camera stream:', fallbackErr);
-          onTriggerFilePicker();
+          onTriggerFilePickerRef.current();
           return;
         }
       }
@@ -93,7 +99,7 @@ export default function InlineCamera(props) {
     return () => {
       cancelled = true;
     };
-  }, [useInlineCamera, cameraStream, onTriggerFilePicker, unsupportedMessage, blockedMessage]);
+  }, [useInlineCamera, cameraStream]);
 
   // Release the camera when the component unmounts (e.g., the modal is closed).
   // Toggling useInlineCamera to false also stops the tracks (above), but in
@@ -194,6 +200,7 @@ export default function InlineCamera(props) {
         className="w-full h-full object-contain"
         onLoadedData={handleVideoReady}
         onLoadedMetadata={handleVideoReady}
+        onPlaying={handleVideoReady}
       />
       {showCapturedFrame && capturedFrame && (
         <img
