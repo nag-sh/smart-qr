@@ -23,7 +23,6 @@
     "@capacitor/share": "^7.0.0",
     "@google/generative-ai": "^0.24.1",
     "@tailwindcss/vite": "^4.3.2",
-    "browser-image-compression": "^2.0.2",
     "html5-qrcode": "^2.3.8",
     "jsqr": "^1.4.0",
     "jszip": "^3.10.1",
