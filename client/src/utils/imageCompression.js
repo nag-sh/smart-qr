@@ -44,7 +44,12 @@ function withTimeout(promise, ms, fallback) {
 
 function loadBitmap(source) {
   if (typeof createImageBitmap === 'function') {
-    return createImageBitmap(source);
+    // Guarded by the timeout: in some WebViews createImageBitmap never settles,
+    // which would hang the caller forever. Bounded so it can't.
+    return withTimeout(createImageBitmap(source), 8000, null).then((bmp) => {
+      if (!bmp) throw new Error('createImageBitmap timed out');
+      return bmp;
+    });
   }
   // Fallback for environments without createImageBitmap: an Image element with
   // an object URL. Guarded so a missing onload can never hang the caller.

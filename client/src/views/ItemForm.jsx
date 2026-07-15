@@ -225,7 +225,7 @@ export default function ItemForm({
         pendingCreate: true,
         binId: effectiveBinId,
         autoAnalyze: !!apiKey
-      });
+      }, { resetStack: true });
       return;
     }
 

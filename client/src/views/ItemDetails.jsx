@@ -32,6 +32,8 @@ export default function ItemDetails({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const [createStatus, setCreateStatus] = useState('');
+
   const [deleting, setDeleting] = useState(false);
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const overflowMenuRef = useRef(null);
@@ -63,6 +65,7 @@ export default function ItemDetails({
     (async () => {
       setLoading(true);
       setError('');
+      setCreateStatus('Reading captured photo…');
       const file = takePendingCreate();
       if (!file) {
         if (!cancelled) {
@@ -72,20 +75,24 @@ export default function ItemDetails({
         return;
       }
       try {
+        setCreateStatus('Compressing photo…');
         const compressed = await compressImage(file, { maxSizeMB: 0.2 });
+        setCreateStatus('Saving item to this device…');
         const created = await createItem(effectiveBinId, '', '', [], '', compressed);
         if (cancelled) return;
-        setResolvedItemId(created.id);
+        setCreateStatus('Loading item details…');
         const items = await searchItems('');
         const found = items.find((i) => i.id === created.id);
-        if (!cancelled) {
-          setItem(found || null);
-          setLoading(false);
-        }
+        setItem(found || null);
+        setLoading(false);
+        // Set this last: it changes a dependency, which re-runs the effect and
+        // fires the cleanup that flips `cancelled`. Doing it after the final
+        // state update avoids the effect bailing out and leaving loading stuck.
+        setResolvedItemId(created.id);
       } catch (err) {
-        console.error(err);
+        console.error('[snap-create] failed:', err);
         if (!cancelled) {
-          setError(err.message || 'Failed to create item.');
+          setError((err && err.message) || 'Failed to create item.');
           setLoading(false);
         }
       }
@@ -297,7 +304,9 @@ export default function ItemDetails({
     return (
       <div className="w-full max-w-4xl mx-auto py-12 text-center space-y-4">
         <RefreshCw className="w-8 h-8 animate-spin mx-auto text-purple-500" />
-        <p className="text-sm text-slate-400">Loading item details...</p>
+        <p className="text-sm text-slate-400">
+          {createStatus || 'Loading item details...'}
+        </p>
       </div>
     );
   }

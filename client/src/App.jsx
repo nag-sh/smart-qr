@@ -120,13 +120,25 @@ function AppContent() {
   // no prior entry then, so navigate(-1) would exit the app or get stuck.
   const pushDepth = useRef(0);
 
-  const onNavigate = (viewName, params = {}) => {
+  const onNavigate = (viewName, params = {}, options = {}) => {
     if (viewName === 'search') {
       if (params.location) {
         navigate('/?filterLocation=' + encodeURIComponent(params.location));
       } else {
         navigate('/');
       }
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      return;
+    }
+
+    // resetStack: collapse the whole modal stack to just this view. Used when
+    // snapping a new item — the prior stack (bin → add-item) should give way to
+    // the loading + details screen, not stay stacked behind it. Back from here
+    // returns to the root (home) rather than re-opening the source modals.
+    if (options.resetStack) {
+      const newStack = [{ type: viewName, params }];
+      navigate({ search: stackToSearchString(newStack) }, { replace: true });
+      pushDepth.current = 0;
       window.scrollTo({ top: 0, behavior: 'instant' });
       return;
     }
@@ -336,7 +348,7 @@ function AppContent() {
             <span className="text-[10px] font-semibold tracking-wider">Scan</span>
           </button>
 
-          {/* Quick Add Tab */}
+          {/* Add Tab */}
           <button
             onClick={() => onNavigate('quick-add')}
             className="flex flex-col items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer text-slate-400 hover:text-slate-200"

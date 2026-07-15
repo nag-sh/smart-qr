@@ -105,10 +105,10 @@ export default function MultiAddModal({ binId, onNavigate, onBack, refreshNonce 
         const compressed = await compressImage(file, { maxSizeMB: 0.2 });
 
         const metadata = await retryWithBackoff(
-          () => analyzeItemImage(apiKey, compressed),
+          () => analyzeItemImage(apiKey, compressed, abortController.signal),
           {
-            maxAttempts: 3,
-            delayMs: 500,
+            maxAttempts: 2,
+            delayMs: 1000,
             shouldRetry: isRetryableError,
             signal: abortController.signal,
           },
@@ -116,7 +116,7 @@ export default function MultiAddModal({ binId, onNavigate, onBack, refreshNonce 
 
         const tags = [
           ...(metadata.tags || []),
-          ...(metadata.colors || []),
+          ...(metadata.colors || [])
         ]
           .map((s) => String(s).trim().toLowerCase())
           .filter(Boolean);
@@ -172,6 +172,12 @@ export default function MultiAddModal({ binId, onNavigate, onBack, refreshNonce 
       };
 
       setRoll((prev) => [...prev, card]);
+      // Keep the ref in sync immediately. handleCapture looks the card up via
+      // rollRef in the SAME tick (capturePhoto fires onCapture right after
+      // onCapturePreview), but rollRef is otherwise only synced in a useEffect
+      // that runs after render — so without this the lookup misses and the card
+      // hangs on "Analyzing" forever.
+      rollRef.current = [...rollRef.current, card];
     },
     [apiKey],
   );

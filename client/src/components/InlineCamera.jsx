@@ -28,11 +28,13 @@ export default function InlineCamera(props) {
 
   const videoRef = useRef(null);
   const usingFrontCamera = useRef(false);
+  const streamRef = useRef(null);
 
   // Stop camera tracks when the camera is hidden or the component unmounts.
   useEffect(() => {
     if (!useInlineCamera && cameraStream) {
       cameraStream.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
       setCameraStream(null);
       setCameraReady(false);
     }
@@ -83,6 +85,7 @@ export default function InlineCamera(props) {
       }
 
       setCameraStream(stream);
+      streamRef.current = stream;
     };
 
     startCamera(usingFrontCamera.current ? 'user' : 'environment');
@@ -91,6 +94,20 @@ export default function InlineCamera(props) {
       cancelled = true;
     };
   }, [useInlineCamera, cameraStream, onTriggerFilePicker, unsupportedMessage, blockedMessage]);
+
+  // Release the camera when the component unmounts (e.g., the modal is closed).
+  // Toggling useInlineCamera to false also stops the tracks (above), but in
+  // multi-add the camera is always active while mounted, so the only reliable
+  // signal that we're done with it is unmount — without this the OS shows the
+  // camera as still in use.
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+    };
+  }, []);
 
   // Hook the active stream up to the video element.
   useEffect(() => {
@@ -104,6 +121,7 @@ export default function InlineCamera(props) {
     usingFrontCamera.current = !usingFrontCamera.current;
     if (cameraStream) {
       cameraStream.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
       setCameraStream(null);
     }
     // Nulling the stream re-triggers the start effect, which reads usingFrontCamera.current for the new facing mode.
@@ -124,30 +142,42 @@ export default function InlineCamera(props) {
     }
 
     try {
+      const MAX_DIM = 1280;
+      const longSide = Math.max(video.videoWidth, video.videoHeight);
+      const scale = longSide > MAX_DIM ? MAX_DIM / longSide : 1;
+      const w = Math.max(1, Math.round(video.videoWidth * scale));
+      const h = Math.max(1, Math.round(video.videoHeight * scale));
+
       const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
+      canvas.width = w;
+      canvas.height = h;
 
       const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, 0, 0, w, h);
 
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-      setCapturedFrame(dataUrl);
       setShutterFlash(true);
       setTimeout(() => setShutterFlash(false), 300);
 
-      // Emit a synchronous preview so consumers (e.g. the multi-add roll) can
-      // show the thumbnail the instant the shutter fires, instead of waiting
-      // for the async canvas.toBlob encode below to finish.
       const captureId = crypto.randomUUID();
-      if (onCapturePreview) onCapturePreview(dataUrl, captureId);
 
-      canvas.toBlob(async (blob) => {
+      // Instant preview: a synchronous data URL so the roll card paints on the
+      // very next frame with zero async-encode wait. The canvas is capped at
+      // 1280px, so this encode is only a few-dozen ms — far cheaper than the old
+      // full-res toDataURL that froze the UI for 1-2s before navigation could start.
+      const previewUrl = canvas.toDataURL('image/jpeg', 0.7);
+      if (showCapturedFrame) setCapturedFrame(previewUrl);
+      if (onCapturePreview) onCapturePreview(previewUrl, captureId);
+
+      canvas.toBlob((blob) => {
         if (!blob) {
+          onTriggerFilePicker();
           return;
         }
         const file = new File([blob], captureFileName, { type: 'image/jpeg' });
-        await onCapture(file, captureId);
+        // Emit onCapture AFTER onCapturePreview: multi-add creates the preview
+        // card in onCapturePreview and looks it up here, so the card must exist
+        // first or the capture silently no-ops and hangs on "Analyzing".
+        onCapture(file, captureId);
       }, 'image/jpeg', 0.85);
     } catch (err) {
       console.error('Capture frame error:', err);
