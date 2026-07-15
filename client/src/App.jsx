@@ -145,7 +145,9 @@ function AppContent() {
     }
 
     if (options.replace) {
-      const newStack = [...stack, { type: viewName, params }];
+      const newStack = stack.length > 0
+        ? [...stack.slice(0, -1), { type: viewName, params }]
+        : [{ type: viewName, params }];
       navigate({ search: stackToSearchString(newStack) }, { replace: true });
       window.scrollTo({ top: 0, behavior: 'instant' });
       return;

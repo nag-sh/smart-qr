@@ -206,7 +206,9 @@ export default function ItemForm({
 
   const handleCapture = async (file) => {
     await processAndAnalyzeImage(file);
-    stopInlineCamera();
+    if (!isCreate || imageFile) {
+      stopInlineCamera();
+    }
   };
 
   const processAndAnalyzeImage = async (file) => {
@@ -219,7 +221,6 @@ export default function ItemForm({
     if (isCreate && !imageFile) {
       const targetBinId = initialBinId || selectedBinId;
       const effectiveBinId = targetBinId && targetBinId !== UNASSIGNED ? targetBinId : null;
-      stopInlineCamera();
       setPendingCreate(file);
       onNavigate('item-details', {
         pendingCreate: true,
