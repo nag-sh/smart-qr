@@ -26,7 +26,7 @@ describe('compressImage', () => {
       expect.objectContaining({
         maxSizeMB: 0.25,
         maxWidthOrHeight: 1024,
-        useWebWorker: true,
+        useWebWorker: false,
       })
     );
   });
@@ -45,7 +45,7 @@ describe('compressImage', () => {
     await compressImage(file, { maxWidthOrHeight: 512 });
     expect(imageCompression).toHaveBeenCalledWith(
       file,
-      expect.objectContaining({ maxSizeMB: 0.25, maxWidthOrHeight: 512, useWebWorker: true })
+      expect.objectContaining({ maxSizeMB: 0.25, maxWidthOrHeight: 512, useWebWorker: false })
     );
   });
 });

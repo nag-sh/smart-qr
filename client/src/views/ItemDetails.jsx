@@ -21,9 +21,11 @@ export default function ItemDetails({
   binId
 }) {
   // Modal params are URL-serialized on every render, which turns booleans into
-  // strings ("false" is truthy), so coerce explicitly here.
+  // strings ("false" is truthy) and null into the literal string "null", so
+  // coerce explicitly here.
   const autoAnalyze = autoAnalyzeParam === true || autoAnalyzeParam === 'true';
   const pendingCreate = pendingCreateParam === true || pendingCreateParam === 'true';
+  const effectiveBinId = binId && binId !== 'null' ? binId : null;
   const [item, setItem] = useState(null);
   const [resolvedItemId, setResolvedItemId] = useState(itemId);
   const [bin, setBin] = useState(null);
@@ -71,7 +73,7 @@ export default function ItemDetails({
       }
       try {
         const compressed = await compressImage(file, { maxSizeMB: 0.2 });
-        const created = await createItem(binId, '', '', [], '', compressed);
+        const created = await createItem(effectiveBinId, '', '', [], '', compressed);
         if (cancelled) return;
         setResolvedItemId(created.id);
         const items = await searchItems('');
@@ -89,7 +91,7 @@ export default function ItemDetails({
       }
     })();
     return () => { cancelled = true; };
-  }, [pendingCreate, binId, resolvedItemId]);
+  }, [pendingCreate, effectiveBinId, resolvedItemId]);
 
   useEffect(() => {
     if (pendingCreate) return; // creation effect owns loading + item for the handoff
