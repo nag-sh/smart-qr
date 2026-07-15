@@ -36,6 +36,16 @@ function Harness({ stateRef }) {
     navigate({ search: stackToSearchString(newStack) });
   };
 
+  stateRef.navigateWithReplace = (viewName, params = {}) => {
+    if (viewName === 'search') {
+      navigate('/');
+      return;
+    }
+    const base = stack.length > 0 ? stack.slice(0, -1) : [];
+    const newStack = [...base, { type: viewName, params }];
+    navigate({ search: stackToSearchString(newStack) }, { replace: true });
+  };
+
   stateRef.back = () => {
     stack.length <= 1 ? navigate('/') : navigate(-1);
   };
@@ -76,6 +86,10 @@ async function renderHarness({ stateRef, render }) {
 
 async function navigate(viewName, params, { stateRef }) {
   await act(() => stateRef.navigate(viewName, params));
+}
+
+async function navigateWithReplace(viewName, params, { stateRef }) {
+  await act(() => stateRef.navigateWithReplace(viewName, params));
 }
 
 async function goBack({ stateRef }) {
@@ -242,6 +256,93 @@ describe('modalStack + react-router integration', () => {
     expect(h.stateRef.current.stack).toEqual([
       { type: 'multi-add', params: { binId: 'xyz' } },
     ]);
+    h.cleanup();
+  });
+
+  it('replace replaces current layer without appending and keeps back navigation working', async () => {
+    const h = createHarness();
+    await renderHarness(h);
+
+    await navigate('scanner', {}, h);
+    await navigate('settings', {}, h);
+    expect(h.stateRef.current.stack).toHaveLength(2);
+
+    await navigateWithReplace('bin-details', { binId: '42' }, h);
+    expect(h.stateRef.current.stack).toHaveLength(2);
+    expect(h.stateRef.current.stack).toEqual([
+      { type: 'scanner', params: {} },
+      { type: 'bin-details', params: { binId: '42' } },
+    ]);
+    expect(h.stateRef.current.searchString).toContain('modal=bin-details');
+    expect(h.stateRef.current.searchString).not.toMatch(/(^|&)modal=settings(&|$)/);
+
+    await goBack(h);
+    expect(h.stateRef.current.stack).toHaveLength(1);
+    expect(h.stateRef.current.stack[0].type).toBe('scanner');
+    h.cleanup();
+  });
+
+  it('scanner -> result with replace removes scanner and preserves prior layer', async () => {
+    const h = createHarness();
+    await renderHarness(h);
+
+    await navigate('bin-details', { binId: '1' }, h);
+    await navigate('scanner', {}, h);
+    expect(h.stateRef.current.stack).toEqual([
+      { type: 'bin-details', params: { binId: '1' } },
+      { type: 'scanner', params: {} },
+    ]);
+
+    await navigateWithReplace('item-details', { itemId: '2' }, h);
+    expect(h.stateRef.current.stack).toEqual([
+      { type: 'bin-details', params: { binId: '1' } },
+      { type: 'item-details', params: { itemId: '2' } },
+    ]);
+    expect(h.stateRef.current.searchString).toContain('modal=item-details');
+    expect(h.stateRef.current.searchString).not.toContain('modal=scanner');
+
+    await goBack(h);
+    expect(h.stateRef.current.stack).toHaveLength(1);
+    expect(h.stateRef.current.stack[0].type).toBe('bin-details');
+    h.cleanup();
+  });
+
+  it('single-item capture plain push keeps camera/form under item-details', async () => {
+    const h = createHarness();
+    await renderHarness(h);
+
+    await navigate('bin-details', { binId: '1' }, h);
+    await navigate('add-item', { binId: '1' }, h);
+    await navigate('item-details', { itemId: 'new', pendingCreate: true, binId: '1' }, h);
+    expect(h.stateRef.current.stack).toEqual([
+      { type: 'bin-details', params: { binId: '1' } },
+      { type: 'add-item', params: { binId: '1' } },
+      { type: 'item-details', params: { itemId: 'new', pendingCreate: 'true', binId: '1' } },
+    ]);
+
+    await goBack(h);
+    expect(h.stateRef.current.stack).toHaveLength(2);
+    expect(h.stateRef.current.stack[1].type).toBe('add-item');
+    h.cleanup();
+  });
+
+  it('Class B sub-modal with replace replaces current and returns to underlying modal', async () => {
+    const h = createHarness();
+    await renderHarness(h);
+
+    await navigate('bin-details', { binId: '1' }, h);
+    await navigate('settings', {}, h);
+    await navigateWithReplace('settings-warning', {}, h);
+    expect(h.stateRef.current.stack).toEqual([
+      { type: 'bin-details', params: { binId: '1' } },
+      { type: 'settings-warning', params: {} },
+    ]);
+    expect(h.stateRef.current.searchString).toContain('modal=settings-warning');
+    expect(h.stateRef.current.searchString).not.toMatch(/(^|&)modal=settings(&|$)/);
+
+    await goBack(h);
+    expect(h.stateRef.current.stack).toHaveLength(1);
+    expect(h.stateRef.current.stack[0].type).toBe('bin-details');
     h.cleanup();
   });
 });

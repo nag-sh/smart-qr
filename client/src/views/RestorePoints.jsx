@@ -144,7 +144,7 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
     setMultiRestoreConflicts([]);
     setRestoreSuccess('');
     setRestoreError('');
-    onNavigate('restore-multi');
+    onNavigate('restore-multi', {}, { replace: true });
   };
 
   const handleMultiRestoreApply = async () => {
@@ -265,7 +265,7 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
                 {list.map(entry => (
                   <div
                     key={entry.id}
-                    onClick={() => { setSelectedAuditEntry(entry); onNavigate('restore-details'); }}
+                    onClick={() => { setSelectedAuditEntry(entry); onNavigate('restore-details', {}, { replace: true }); }}
                     className={`p-2.5 bg-slate-900/40 border rounded-xl hover:bg-slate-900/65 hover:border-purple-500/30 transition-all cursor-pointer ${
                       selectedChangesToRestore.has(entry.id) ? 'border-purple-500 bg-purple-950/10' : 'border-slate-800/60'
                     }`}
@@ -305,7 +305,7 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
                         onClick={(e) => {
                           e.stopPropagation();
                           handleStartCherryPick(entry);
-                          onNavigate('restore-cherry');
+                          onNavigate('restore-cherry', {}, { replace: true });
                         }}
                         className="flex-1 py-1.5 px-2 rounded-lg border border-slate-800 bg-slate-950/60 hover:bg-purple-600/10 hover:border-purple-500/20 text-[10px] font-bold text-slate-300 hover:text-purple-300 flex items-center justify-center gap-1 cursor-pointer transition-all"
                         title="Cherry-pick specific bins/items"
@@ -318,7 +318,7 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
                           e.stopPropagation();
                           setRestoreTarget(entry);
                           setCherryPickMode(false);
-                          onNavigate('restore-revert');
+                          onNavigate('restore-revert', {}, { replace: true });
                         }}
                         className="flex-1 py-1.5 px-2 rounded-lg border border-slate-700 hover:bg-slate-800 text-[10px] font-bold text-slate-300 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95"
                         title="Overwrite entire database to this checkpoint"
@@ -815,19 +815,19 @@ export default function RestorePoints({ onNavigate, onBack, modalTypes, refreshN
                   onClick={() => {
                     handleStartCherryPick(selectedAuditEntry);
                     setSelectedAuditEntry(null);
-                    onNavigate('restore-cherry');
+                    onNavigate('restore-cherry', {}, { replace: true });
                   }}
                   className="py-2 px-3 rounded-xl bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/30 text-purple-300 font-bold text-xs cursor-pointer flex items-center gap-1.5 transition-colors"
                 >
                   <GitBranch className="w-3.5 h-3.5" /> Pick
                 </button>
                 <button
-                  onClick={() => {
-                    setRestoreTarget(selectedAuditEntry);
-                    setCherryPickMode(false);
-                    setSelectedAuditEntry(null);
-                    onNavigate('restore-revert');
-                  }}
+                onClick={() => {
+                  setRestoreTarget(selectedAuditEntry);
+                  setCherryPickMode(false);
+                  setSelectedAuditEntry(null);
+                  onNavigate('restore-revert', {}, { replace: true });
+                }}
                   className="py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold text-xs cursor-pointer flex items-center gap-1.5 transition-colors"
                 >
                   <RotateCcw className="w-3.5 h-3.5 text-slate-400" /> Revert

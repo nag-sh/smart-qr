@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, useSearchParams, useNavigate } from 'react-router-dom';
 import { parseModalStack, stackToSearchString, dedupeStack } from './modalStack.js';
 import { Capacitor } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
 import { useEdgeGestures } from './hooks/useEdgeGestures.js';
 import { Print } from './plugins/print.js';
 import { QrCode, Settings as SettingsIcon, Printer, Info, Plus, Search as SearchIcon } from 'lucide-react';
@@ -143,6 +144,13 @@ function AppContent() {
       return;
     }
 
+    if (options.replace) {
+      const newStack = [...stack, { type: viewName, params }];
+      navigate({ search: stackToSearchString(newStack) }, { replace: true });
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      return;
+    }
+
     // One unique modal type at a time. If the target type is already in the
     // stack, returning to it is equivalent to pressing the back button, so we
     // pop back to that existing instance instead of stacking a duplicate.
@@ -182,6 +190,21 @@ function AppContent() {
 
   const rootRef = useRef(null);
   useEdgeGestures(rootRef, { onBack });
+
+  // Android system back gesture → same in-app back the edge-swipe uses, so a
+  // left-edge swipe always pops one modal layer instead of closing the app
+  // (the OS default). Registering the listener disables that default. On web
+  // the browser owns back, so skip entirely.
+  useEffect(() => {
+    if (Capacitor.getPlatform() !== 'android') return;
+    let handle;
+    let cancelled = false;
+    CapacitorApp.addListener('backButton', () => {
+      if (stack.length > 0) onBack();
+      else CapacitorApp.exitApp();
+    }).then((h) => { if (!cancelled) handle = h; });
+    return () => { cancelled = true; handle?.remove(); };
+  }, [stack.length, onBack]);
 
   // central printing trigger
   const handlePrintBin = async (qrId, binName) => {
@@ -281,7 +304,7 @@ function AppContent() {
     if (stack.length === 0) return null;
     return stack.map((layer, i) => {
       const { type, params } = layer;
-      const hideClose = ['restore-points', 'bin-details', 'item-details', 'add-item', 'create-bin', 'scanner', 'multi-add'].includes(type);
+      const hideClose = ['restore-points', 'bin-details', 'item-details', 'add-item', 'create-bin'].includes(type);
       const isLast = i === stack.length - 1;
 
       let view;
@@ -337,7 +360,7 @@ function AppContent() {
 
           {/* Scanner Tab */}
           <button
-            onClick={() => onNavigate('scanner')}
+            onClick={() => onNavigate('scanner', {}, { replace: true })}
             className={`flex flex-col items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
               stack[stack.length - 1]?.type === 'scanner'
                 ? 'text-purple-400 bg-purple-500/10'
@@ -350,7 +373,7 @@ function AppContent() {
 
           {/* Add Tab */}
           <button
-            onClick={() => onNavigate('quick-add')}
+            onClick={() => onNavigate('quick-add', {}, { replace: true })}
             className="flex flex-col items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer text-slate-400 hover:text-slate-200"
           >
             <Plus className="w-5 h-5" />

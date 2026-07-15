@@ -133,7 +133,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
     clearSyncFeedback();
     if (deleteUnreferenced) {
       setPendingSyncDirection(direction);
-      onNavigate('settings-warning');
+      onNavigate('settings-warning', {}, { replace: true });
     } else {
       direction === 'pull' ? handleSyncPull() : handleSyncPush();
     }
@@ -170,7 +170,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
   const handleCloudClick = () => {
     setCloudInput(cloudUrl || 'https://smartqr.nag.sh/api');
     setCloudTokenInput(cloudToken || '');
-    onNavigate('settings-cloud');
+    onNavigate('settings-cloud', {}, { replace: true });
   };
 
   const handleCloudConnect = async () => {

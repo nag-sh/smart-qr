@@ -202,7 +202,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
         setAllBins(binsList.filter(b => b.id !== bin.id));
         setSelectedItems(new Set(items.map(i => i.id)));
         setBatchTargetBin(binsList.find(b => b.id !== bin.id)?.id || '');
-        onNavigate('batch-manage', { binId: bin.id });
+        onNavigate('batch-manage', { binId: bin.id }, { replace: true });
       } else {
         alert(err.message || 'Failed to delete bin');
       }
@@ -424,7 +424,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
 
       {/* Action Button: Multi-add (bulk entry) */}
       <button
-        onClick={() => onNavigate('multi-add', { binId: bin.id })}
+        onClick={() => onNavigate('multi-add', { binId: bin.id }, { replace: true })}
         className="w-full py-4 rounded-2xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-98 cursor-pointer"
       >
         <Layers className="w-5 h-5" /> Multi-add Items

@@ -252,10 +252,10 @@ export default function Scanner({ onNavigate, onBack }) {
     setError('');
     try {
       const { bin } = await getBin(trimmed);
-      onNavigate('bin-details', { binId: bin.id });
+      onNavigate('bin-details', { binId: bin.id }, { replace: true });
     } catch (err) {
       if (err.message === 'Bin not found') {
-        onNavigate('create-bin', { qrId: trimmed });
+        onNavigate('create-bin', { qrId: trimmed }, { replace: true });
       } else {
         setError(err.message || 'Error processing scanned QR code');
       }

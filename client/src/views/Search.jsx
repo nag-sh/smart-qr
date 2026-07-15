@@ -437,7 +437,7 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
           />
         </div>
         <button
-          onClick={() => onNavigate('scanner')}
+          onClick={() => onNavigate('scanner', {}, { replace: true })}
           className="p-3.5 rounded-2xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/30 text-purple-300 hover:text-white transition-all cursor-pointer flex items-center justify-center shrink-0"
           title="Scan QR Code"
         >
@@ -585,7 +585,7 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
 
         <div className="flex items-center gap-2 shrink-0">
           <button
-            onClick={() => onNavigate('filters')}
+            onClick={() => onNavigate('filters', {}, { replace: true })}
             className={`relative p-2.5 rounded-xl transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50 bg-slate-900/60 border border-slate-800/80 ${
               modalTypes.includes('filters') || activeFilterCount > 0
                 ? 'bg-purple-600 text-white shadow shadow-purple-950/20'
@@ -798,7 +798,7 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
             <div className="grid grid-cols-1 gap-3">
               <button
                 onClick={() => {
-                  onNavigate('create-bin');
+                  onNavigate('create-bin', {}, { replace: true });
                 }}
                 className="flex items-center gap-3 p-4 rounded-2xl glass-card border border-slate-800/60 hover:border-purple-500/30 hover:bg-slate-900/60 transition-all cursor-pointer text-left group"
                 aria-label="Bin"
@@ -814,7 +814,7 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
 
               <button
                 onClick={() => {
-                  onNavigate('add-item');
+                  onNavigate('add-item', {}, { replace: true });
                 }}
                 className="flex items-center gap-3 p-4 rounded-2xl glass-card border border-slate-800/60 hover:border-pink-500/30 hover:bg-slate-900/60 transition-all cursor-pointer text-left group"
                 aria-label="Item"
@@ -830,7 +830,7 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
 
               <button
                 onClick={() => {
-                  onNavigate('multi-add');
+                  onNavigate('multi-add', {}, { replace: true });
                 }}
                 className="flex items-center gap-3 p-4 rounded-2xl glass-card border border-slate-800/60 hover:border-amber-500/30 hover:bg-slate-900/60 transition-all cursor-pointer text-left group"
                 aria-label="Quick Items"
