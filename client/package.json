@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:mobile": "vite build --config vite.mobile.config.js",
+    "build:mobile": "CAPACITOR=true vite build",
     "android:sync": "npm run build:mobile && cap sync android",
     "android:build": "npm run android:sync && cd android && ./gradlew assembleDebug",
     "android:open": "npm run android:sync && cap open android",
@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@capacitor/android": "^7.0.0",
+    "@capacitor/app": "^7.0.0",
     "@capacitor/camera": "^7.0.0",
     "@capacitor/core": "^7.0.0",
     "@capacitor/filesystem": "^7.0.0",
@@ -23,7 +24,6 @@
     "@capacitor/share": "^7.0.0",
     "@google/generative-ai": "^0.24.1",
     "@tailwindcss/vite": "^4.3.2",
-    "browser-image-compression": "^2.0.2",
     "html5-qrcode": "^2.3.8",
     "jsqr": "^1.4.0",
     "jszip": "^3.10.1",

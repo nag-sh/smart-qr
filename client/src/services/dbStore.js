@@ -48,30 +48,6 @@ export async function setTable(name, value) {
   });
 }
 
-export async function removeTable(name) {
-  const db = await openDB();
-  if (!db) return;
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    store.delete(name);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-export async function clearAll() {
-  const db = await openDB();
-  if (!db) return;
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    store.clear();
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
 export async function migrateFromLocalStorage() {
   if (typeof window === 'undefined' || !window.indexedDB) {
     console.error('IndexedDB unavailable; skipping localStorage migration');

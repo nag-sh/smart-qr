@@ -1,8 +1,17 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search as SearchIcon, MapPin, QrCode, LayoutGrid, List, Image as ImageIcon, Box, Package, Filter as FilterIcon, Tag, Trash2, Move, RefreshCw, Check, X, ArrowLeft, Settings as SettingsIcon } from 'lucide-react';
+import { Search as SearchIcon, MapPin, QrCode, Box, Package, Layers, Filter as FilterIcon, Tag, Trash2, Move, RefreshCw, Check, X, MoreVertical, Settings as SettingsIcon } from 'lucide-react';
 import { getBins, searchItems, batchDeleteBins, batchUpdateBinLocations, batchDeleteItems, batchMoveItems } from '../services/storage';
 import EntityList from '../components/EntityList';
+import BackButton from '../components/BackButton';
+import LayoutModeToggle from '../components/LayoutModeToggle';
+
+// Map a tag's occurrence count to a hue: blue (rare) -> red (frequent).
+function tagHue(count, min, max) {
+  if (max <= min) return 217;
+  const t = (count - min) / (max - min);
+  return 217 * (1 - t);
+}
 
 export default function Search({ onNavigate, onBack, modalTypes }) {
   const [query, setQuery] = useState('');
@@ -19,8 +28,13 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
   const [batchWorking, setBatchWorking] = useState(false);
   const [selectedLocations, setSelectedLocations] = useState(new Set());
   const [selectedTags, setSelectedTags] = useState(new Set());
+  const [tagsVisible, setTagsVisible] = useState(30);
   const [selectedBins, setSelectedBins] = useState(new Set());
   const [selectedHasFields, setSelectedHasFields] = useState(new Set());
+  const [showBins, setShowBins] = useState(true);
+  const [showItems, setShowItems] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
   const [searchParams] = useSearchParams();
   const searchViewRef = useRef(null);
 
@@ -31,6 +45,15 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
       }
     });
   }, []);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onPointerDown = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [menuOpen]);
 
   const activeFilterCount = selectedLocations.size + selectedTags.size + selectedBins.size + selectedHasFields.size;
 
@@ -71,10 +94,6 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
       setSelectedBins(new Set());
     }
   };
-
-  useEffect(() => {
-    localStorage.setItem('view_mode_search', layoutMode);
-  }, [layoutMode]);
 
   useEffect(() => {
     try {
@@ -162,6 +181,23 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
     };
   }, []);
 
+  const POLL_INTERVAL_MS = 5000;
+  const batchWorkingRef = useRef(batchWorking);
+  useEffect(() => { batchWorkingRef.current = batchWorking; }, [batchWorking]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (batchWorkingRef.current) return;
+      getBins()
+        .then(setBins)
+        .catch((err) => console.error('[search-poll] bins failed:', err));
+      searchItems(query)
+        .then(setItems)
+        .catch((err) => console.error('[search-poll] items failed:', err));
+    }, POLL_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [query]);
+
   // Reset pagination when filter criteria or layout change
   useEffect(() => {
     setVisibleCount(12);
@@ -194,10 +230,25 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
   }, [bins, items]);
 
   const allTags = useMemo(() => {
-    const tags = new Set();
-    items.forEach(i => { (i.search_tags || []).forEach(t => tags.add(t)); });
-    return Array.from(tags).sort((a, b) => a.localeCompare(b));
+    const counts = new Map();
+    items.forEach(i => {
+      (i.search_tags || []).forEach(t => counts.set(t, (counts.get(t) || 0) + 1));
+    });
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([tag, count]) => ({ tag, count }));
   }, [items]);
+
+  const { tagMin, tagMax } = useMemo(() => {
+    if (allTags.length === 0) return { tagMin: 0, tagMax: 0 };
+    let mn = Infinity;
+    let mx = -Infinity;
+    for (const { count } of allTags) {
+      if (count < mn) mn = count;
+      if (count > mx) mx = count;
+    }
+    return { tagMin: mn, tagMax: mx };
+  }, [allTags]);
 
   const allBins = useMemo(() => [...bins].sort((a, b) => a.name.localeCompare(b.name)), [bins]);
 
@@ -219,6 +270,9 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
 
   const filteredEntities = useMemo(() => {
     return unifiedEntities.filter(entry => {
+      if (!showBins && entry.type === 'bin') return false;
+      if (!showItems && entry.type === 'item') return false;
+
       if (selectedLocations.size > 0) {
         const loc = entry.type === 'bin' ? entry.location : entry.bin_location;
         const entryLoc = (loc || '').toLowerCase();
@@ -248,7 +302,7 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
 
       return true;
     });
-  }, [unifiedEntities, selectedLocations, selectedTags, selectedBins, selectedHasFields]);
+  }, [unifiedEntities, selectedLocations, selectedTags, selectedBins, selectedHasFields, showBins, showItems]);
 
   const sortedEntities = useMemo(() => {
     if (layoutMode !== 'gallery') return filteredEntities;
@@ -400,7 +454,7 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
           />
         </div>
         <button
-          onClick={() => onNavigate('scanner')}
+          onClick={() => onNavigate('scanner', {}, { replace: true })}
           className="p-3.5 rounded-2xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/30 text-purple-300 hover:text-white transition-all cursor-pointer flex items-center justify-center shrink-0"
           title="Scan QR Code"
         >
@@ -506,49 +560,49 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex bg-slate-900/60 p-1 rounded-xl border border-slate-800/80 gap-1 shrink-0">
-          <button
-            onClick={() => setLayoutMode('thumbnail')}
-            className={`p-2.5 rounded-lg transition-colors cursor-pointer ${
-              layoutMode === 'thumbnail'
-                ? 'bg-purple-600 text-white shadow shadow-purple-950/20'
-                : 'text-slate-500 hover:text-slate-300'
-            }`}
-            title="Thumbnail Grid Mode"
-            aria-label="Thumbnail Grid Mode"
-          >
-            <LayoutGrid className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => setLayoutMode('detailed')}
-            className={`p-2.5 rounded-lg transition-colors cursor-pointer ${
-              layoutMode === 'detailed'
-                ? 'bg-purple-600 text-white shadow shadow-purple-950/20'
-                : 'text-slate-500 hover:text-slate-300'
-            }`}
-            title="Detailed List Mode"
-            aria-label="Detailed List Mode"
-          >
-            <List className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => setLayoutMode('gallery')}
-            className={`p-2.5 rounded-lg transition-colors cursor-pointer ${
-              layoutMode === 'gallery'
-                ? 'bg-purple-600 text-white shadow shadow-purple-950/20'
-                : 'text-slate-500 hover:text-slate-300'
-            }`}
-            title="Gallery Mode"
-            aria-label="Gallery Mode"
-          >
-            <ImageIcon className="w-5 h-5" />
-          </button>
+      <div className="flex items-center gap-2">
+        <LayoutModeToggle
+          mode={layoutMode}
+          onChange={setLayoutMode}
+          storageKey="view_mode_search"
+          variant="search"
+        />
+
+        <div className="flex-1 flex justify-center">
+          {/* Joined bin/item type filter (multi-select) */}
+          <div className="flex items-center rounded-xl border border-slate-800/80 overflow-hidden bg-slate-900/60">
+            <button
+              onClick={() => setShowBins((v) => !v)}
+              className={`px-3 py-2.5 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50 ${
+                showBins
+                  ? 'bg-purple-600/20 text-purple-300'
+                  : 'text-slate-500 hover:text-slate-300'
+              }`}
+              title="Show bins"
+              aria-label="Toggle bins"
+              aria-pressed={showBins}
+            >
+              <Box className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setShowItems((v) => !v)}
+              className={`px-3 py-2.5 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-pink-500/50 border-l border-slate-800/80 ${
+                showItems
+                  ? 'bg-pink-600/20 text-pink-300'
+                  : 'text-slate-500 hover:text-slate-300'
+              }`}
+              title="Show items"
+              aria-label="Toggle items"
+              aria-pressed={showItems}
+            >
+              <Package className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
           <button
-            onClick={() => onNavigate('filters')}
+            onClick={() => onNavigate('filters', {}, { replace: true })}
             className={`relative p-2.5 rounded-xl transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50 bg-slate-900/60 border border-slate-800/80 ${
               modalTypes.includes('filters') || activeFilterCount > 0
                 ? 'bg-purple-600 text-white shadow shadow-purple-950/20'
@@ -564,14 +618,43 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
               </span>
             )}
           </button>
-          <button
-            onClick={() => onNavigate('settings')}
-            className="p-2.5 rounded-xl transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50 bg-slate-900/60 border border-slate-800/80 text-slate-500 hover:text-slate-300"
-            title="Settings"
-            aria-label="Settings"
-          >
-            <SettingsIcon className="w-5 h-5" />
-          </button>
+
+          {/* "..." menu: Print QR Codes + Settings */}
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setMenuOpen((v) => !v)}
+              className="p-2.5 rounded-xl transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50 bg-slate-900/60 border border-slate-800/80 text-slate-500 hover:text-slate-300"
+              title="More"
+              aria-label="More options"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+            >
+              <MoreVertical className="w-5 h-5" />
+            </button>
+            {menuOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 top-full mt-2 w-48 rounded-2xl glass-panel border border-slate-800 shadow-2xl py-1.5 z-50"
+              >
+                <button
+                  role="menuitem"
+                  onClick={() => { setMenuOpen(false); onNavigate('print-randomized'); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-slate-200 hover:bg-slate-900/60 transition-colors cursor-pointer"
+                >
+                  <QrCode className="w-4 h-4 text-cyan-400" />
+                  Print QR Codes
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => { setMenuOpen(false); onNavigate('settings'); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-slate-200 hover:bg-slate-900/60 transition-colors cursor-pointer"
+                >
+                  <SettingsIcon className="w-4 h-4 text-slate-400" />
+                  Settings
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -704,30 +787,27 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
         </div>
       )}
 
-      {/* Quick Add Modal */}
+      {/* Add Modal */}
       {modalTypes.includes('quick-add') && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/30 backdrop-blur-md"
           onClick={onBack}
           role="dialog"
           aria-modal="true"
-          aria-label="Quick Add"
+          aria-label="Add"
         >
           <div
             className="glass-panel-modal w-full max-w-sm rounded-3xl p-6 relative space-y-5 animate-in fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3">
-              <button
+              <BackButton
                 onClick={onBack}
-                className="p-2 -ml-1 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
-                title="Back to Search"
+                className="-ml-1"
                 aria-label="Back to Search"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
+              />
               <div>
-                <h2 className="text-base font-bold text-slate-200">Quick Add</h2>
+                <h2 className="text-base font-bold text-slate-200">Add</h2>
                 <p className="text-xs text-slate-400">Choose what to create next.</p>
               </div>
             </div>
@@ -735,49 +815,49 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
             <div className="grid grid-cols-1 gap-3">
               <button
                 onClick={() => {
-                  onNavigate('create-bin');
+                  onNavigate('create-bin', {}, { replace: true });
                 }}
                 className="flex items-center gap-3 p-4 rounded-2xl glass-card border border-slate-800/60 hover:border-purple-500/30 hover:bg-slate-900/60 transition-all cursor-pointer text-left group"
-                aria-label="Register Bin"
+                aria-label="Bin"
               >
                 <div className="p-2 bg-purple-500/10 rounded-xl text-purple-400 group-hover:scale-110 transition-transform">
                   <Box className="w-5 h-5" />
                 </div>
                 <div>
-                  <span className="block text-sm font-bold text-slate-200 group-hover:text-purple-300">Register Bin</span>
+                  <span className="block text-sm font-bold text-slate-200 group-hover:text-purple-300">Bin</span>
                   <span className="block text-[10px] text-slate-500">Create a new storage bin</span>
                 </div>
               </button>
 
               <button
                 onClick={() => {
-                  onNavigate('add-item');
+                  onNavigate('add-item', {}, { replace: true });
                 }}
                 className="flex items-center gap-3 p-4 rounded-2xl glass-card border border-slate-800/60 hover:border-pink-500/30 hover:bg-slate-900/60 transition-all cursor-pointer text-left group"
-                aria-label="Add Item"
+                aria-label="Item"
               >
                 <div className="p-2 bg-pink-500/10 rounded-xl text-pink-400 group-hover:scale-110 transition-transform">
                   <Package className="w-5 h-5" />
                 </div>
                 <div>
-                  <span className="block text-sm font-bold text-slate-200 group-hover:text-pink-300">Add Item</span>
+                  <span className="block text-sm font-bold text-slate-200 group-hover:text-pink-300">Item</span>
                   <span className="block text-[10px] text-slate-500">Add an item to a bin</span>
                 </div>
               </button>
 
               <button
                 onClick={() => {
-                  onNavigate('print-randomized');
+                  onNavigate('multi-add', {}, { replace: true });
                 }}
-                className="flex items-center gap-3 p-4 rounded-2xl glass-card border border-slate-800/60 hover:border-cyan-500/30 hover:bg-slate-900/60 transition-all cursor-pointer text-left group"
-                aria-label="Print Randomized QR Codes"
+                className="flex items-center gap-3 p-4 rounded-2xl glass-card border border-slate-800/60 hover:border-amber-500/30 hover:bg-slate-900/60 transition-all cursor-pointer text-left group"
+                aria-label="Quick Items"
               >
-                <div className="p-2 bg-cyan-500/10 rounded-xl text-cyan-400 group-hover:scale-110 transition-transform">
-                  <QrCode className="w-5 h-5" />
+                <div className="p-2 bg-amber-500/10 rounded-xl text-amber-400 group-hover:scale-110 transition-transform">
+                  <Layers className="w-5 h-5" />
                 </div>
                 <div>
-                  <span className="block text-sm font-bold text-slate-200 group-hover:text-cyan-300">Print Randomized QR Codes</span>
-                  <span className="block text-[10px] text-slate-500">Bulk print blank QR labels</span>
+                  <span className="block text-sm font-bold text-slate-200 group-hover:text-amber-300">Quick Items</span>
+                  <span className="block text-[10px] text-slate-500">Bulk-capture many items at once</span>
                 </div>
               </button>
             </div>
@@ -798,14 +878,10 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-4 border-b border-slate-800/60 shrink-0">
-              <button
+              <BackButton
                 onClick={onBack}
-                className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
-                title="Back to Search"
                 aria-label="Back to Search"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
+              />
               <h2 className="text-base font-bold text-slate-200">Filters</h2>
               <button
                 onClick={onBack}
@@ -817,7 +893,7 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-6">
+            <div className="flex-1 overflow-y-auto p-4 pb-24 space-y-6">
               {allLocations.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
@@ -853,24 +929,41 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
                     Tags
                   </div>
                   <div className="flex flex-wrap gap-1.5">
-                    {allTags.map(tag => {
+                    {allTags.slice(0, tagsVisible).map(({ tag, count }) => {
                       const selected = selectedTags.has(tag);
+                      const hue = tagHue(count, tagMin, tagMax);
                       return (
                         <button
                           key={tag}
                           onClick={() => toggleInSet(selectedTags, tag, setSelectedTags)}
+                          style={selected ? undefined : {
+                            backgroundColor: `hsla(${hue}, 75%, 55%, 0.16)`,
+                            color: `hsl(${hue}, 80%, 72%)`,
+                            borderColor: `hsla(${hue}, 75%, 55%, 0.35)`,
+                          }}
                           className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition-all cursor-pointer active:scale-95 flex items-center gap-1.5 ${
                             selected
                               ? 'bg-purple-500/20 border-purple-500/40 text-purple-300 shadow-md shadow-purple-950/20'
-                              : 'bg-slate-950/45 border-slate-850 hover:border-slate-700 text-slate-400 hover:text-slate-200'
+                              : 'hover:brightness-110'
                           }`}
                         >
-                          <Tag className="w-3 h-3 text-purple-400 shrink-0" />
+                          <Tag
+                            className="w-3 h-3 shrink-0"
+                            style={selected ? undefined : { color: `hsl(${hue}, 80%, 72%)` }}
+                          />
                           {tag}
                         </button>
                       );
                     })}
                   </div>
+                  {allTags.length > tagsVisible && (
+                    <button
+                      onClick={() => setTagsVisible((v) => v + 30)}
+                      className="mt-1 px-2.5 py-1.5 rounded-lg border border-slate-800/80 text-[11px] font-bold text-slate-400 hover:text-slate-200 hover:border-slate-700 transition-all cursor-pointer"
+                    >
+                      Show {Math.min(30, allTags.length - tagsVisible)} more
+                    </button>
+                  )}
                 </div>
               )}
 

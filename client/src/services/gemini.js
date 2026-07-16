@@ -1,5 +1,24 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+// Rejects if `promise` does not settle within `ms`. Unlike relying on the
+// request's AbortSignal, this guarantees the caller is unblocked even when the
+// underlying fetch ignores abort (as can happen in the Capacitor WebView).
+function withTimeoutReject(promise, ms, message) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    Promise.resolve(promise).then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
+
 /**
  * Converts a File object to a base64 string, stripping the data URI prefix.
  * @param {File} file 
@@ -28,7 +47,7 @@ export const fileToGenerativePart = (file) => {
  * @param {File} imageFile - The compressed image file
  * @returns {Promise<{title: string, description: string, tags: string[], colors: string[], visible_text: string}>}
  */
-export async function analyzeItemImage(apiKey, imageFile) {
+export async function analyzeItemImage(apiKey, imageFile, signal) {
   if (!apiKey) {
     throw new Error("Gemini API key is required. Please set it in Settings.");
   }
@@ -64,14 +83,35 @@ export async function analyzeItemImage(apiKey, imageFile) {
     }
   };
 
-  const result = await model.generateContent([prompt, imagePart]);
-  const response = await result.response;
-  const text = response.text();
+  // Bound the network call so a stalled request can never hang the caller
+  // forever. Race against a hard timeout that rejects regardless of whether the
+  // underlying fetch honors abort (it may not in the Capacitor WebView). This
+  // also prevents the multi-add queue from deadlocking once every concurrency
+  // slot is occupied by a stuck request. The AbortController is still passed
+  // for best-effort cancellation when the caller bails.
+  const controller = new AbortController();
+  const onAbort = () => controller.abort();
+  if (signal) {
+    if (signal.aborted) controller.abort();
+    else signal.addEventListener('abort', onAbort, { once: true });
+  }
 
   try {
-    return JSON.parse(text);
-  } catch (err) {
-    console.error("Failed to parse Gemini response text as JSON:", text, err);
-    throw new Error("Gemini returned invalid JSON. Please try capturing the image again.");
+    const result = await withTimeoutReject(
+      model.generateContent([prompt, imagePart], { signal: controller.signal }),
+      20000,
+      'Gemini request timed out'
+    );
+    const response = await result.response;
+    const text = response.text();
+
+    try {
+      return JSON.parse(text);
+    } catch (err) {
+      console.error("Failed to parse Gemini response text as JSON:", text, err);
+      throw new Error("Gemini returned invalid JSON. Please try capturing the image again.");
+    }
+  } finally {
+    if (signal) signal.removeEventListener('abort', onAbort);
   }
 }

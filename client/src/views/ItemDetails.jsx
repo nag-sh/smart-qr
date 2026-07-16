@@ -1,17 +1,40 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  ArrowLeft, Package, MapPin, Tag, RefreshCw, Eye, Edit, Trash2, MoreHorizontal, Sparkles, AlertCircle
+  Package, MapPin, Tag, RefreshCw, Eye, Edit, Trash2, MoreHorizontal, Sparkles,
+  AlertCircle, CheckCircle2
 } from 'lucide-react';
-import { searchItems, getBin, deleteItem, updateItem } from '../services/storage';
+import { searchItems, getBin, deleteItem, updateItem, createItem } from '../services/storage';
+import { takePendingCreate } from '../services/pendingCreate';
 import useImageSrc from '../hooks/useImageSrc';
 import { analyzeItemImage } from '../services/gemini';
 import { getImageBlob, isImageRef } from '../services/localImages';
+import { compressImage } from '../utils/imageCompression';
+import BackButton from '../components/BackButton';
+import MessageBanner from '../components/MessageBanner';
 
-export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }) {
+export default function ItemDetails({
+  onNavigate,
+  itemId,
+  onBack,
+  refreshNonce,
+  onRefresh,
+  autoAnalyze: autoAnalyzeParam = false,
+  pendingCreate: pendingCreateParam = false,
+  binId
+}) {
+  // Modal params are URL-serialized on every render, which turns booleans into
+  // strings ("false" is truthy) and null into the literal string "null", so
+  // coerce explicitly here.
+  const autoAnalyze = autoAnalyzeParam === true || autoAnalyzeParam === 'true';
+  const pendingCreate = pendingCreateParam === true || pendingCreateParam === 'true';
+  const effectiveBinId = binId && binId !== 'null' ? binId : null;
   const [item, setItem] = useState(null);
+  const [resolvedItemId, setResolvedItemId] = useState(itemId);
   const [bin, setBin] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  const [createStatus, setCreateStatus] = useState('');
 
   const [deleting, setDeleting] = useState(false);
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
@@ -31,8 +54,57 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
   const [aiApplying, setAiApplying] = useState(false);
   const [showFullImage, setShowFullImage] = useState(false);
 
+  const [autoAnalyzing, setAutoAnalyzing] = useState(false);
+  const [autoError, setAutoError] = useState('');
+  const autoAnalyzeStarted = useRef(false);
+
+  // A File cannot travel through URL-serialized modal params, so ItemForm stashes
+  // the captured image in a module-level holder; we compress + create the item here
+  // (background) and own the loading state for the whole handoff so it can't stick.
   useEffect(() => {
-    if (!itemId) {
+    if (!pendingCreate || resolvedItemId) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError('');
+      setCreateStatus('Reading captured photo…');
+      const file = takePendingCreate();
+      if (!file) {
+        if (!cancelled) {
+          setError('Captured image was lost. Please try adding the item again.');
+          setLoading(false);
+        }
+        return;
+      }
+      try {
+        setCreateStatus('Compressing photo…');
+        const compressed = await compressImage(file, { maxSizeMB: 0.2 });
+        setCreateStatus('Saving item to this device…');
+        const created = await createItem(effectiveBinId, '', '', [], '', compressed);
+        if (cancelled) return;
+        setCreateStatus('Loading item details…');
+        const items = await searchItems('');
+        const found = items.find((i) => i.id === created.id);
+        setItem(found || null);
+        setLoading(false);
+        // Set this last: it changes a dependency, which re-runs the effect and
+        // fires the cleanup that flips `cancelled`. Doing it after the final
+        // state update avoids the effect bailing out and leaving loading stuck.
+        setResolvedItemId(created.id);
+      } catch (err) {
+        console.error('[snap-create] failed:', err);
+        if (!cancelled) {
+          setError((err && err.message) || 'Failed to create item.');
+          setLoading(false);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [pendingCreate, effectiveBinId, resolvedItemId]);
+
+  useEffect(() => {
+    if (pendingCreate) return; // creation effect owns loading + item for the handoff
+    if (!resolvedItemId) {
       setLoading(false);
       setError('Item ID is missing');
       return;
@@ -43,7 +115,7 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
       setError('');
       try {
         const items = await searchItems('');
-        const found = items.find((i) => i.id === itemId);
+        const found = items.find((i) => i.id === resolvedItemId);
         if (!found) {
           setError('Item not found');
           setItem(null);
@@ -70,7 +142,37 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
     };
 
     fetchItem();
-  }, [itemId, refreshNonce]);
+  }, [pendingCreate, resolvedItemId, refreshNonce]);
+
+  const itemPollBlockRef = useRef(false);
+  useEffect(() => {
+    itemPollBlockRef.current = pendingCreate && !resolvedItemId;
+  }, [pendingCreate, resolvedItemId]);
+
+  useEffect(() => {
+    if (pendingCreate) return;
+    const id = setInterval(() => {
+      if (itemPollBlockRef.current) return;
+      (async () => {
+        try {
+          const items = await searchItems('');
+          const found = items.find((i) => i.id === resolvedItemId);
+          if (!found) return;
+          setItem(found);
+          if (found.bin_id) {
+            try {
+              const binData = await getBin(found.bin_id);
+              setBin(binData.bin);
+            } catch {
+            }
+          }
+        } catch (err) {
+          console.error('[item-poll] failed:', err);
+        }
+      })();
+    }, 5000);
+    return () => clearInterval(id);
+  }, [pendingCreate, resolvedItemId]);
 
   useEffect(() => {
     if (!showOverflowMenu) return;
@@ -174,6 +276,7 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
     try {
       const updated = await updateItem(item.id, fields);
       setItem(updated);
+      onRefresh?.();
       setAiReviewOpen(false);
     } catch (err) {
       console.error(err);
@@ -183,13 +286,61 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
     }
   };
 
+  // Runs the same AI analysis as the manual review flow but auto-applies the
+  // proposed fields to the item, used by the Add Item "snap -> details" handoff.
+  const runAutoAnalyze = useCallback(async () => {
+    if (!item) return;
+    setAutoError('');
+    setAutoAnalyzing(true);
+    try {
+      const apiKey = localStorage.getItem('gemini_api_key');
+      const file = await imageUrlToFile(item.image_url);
+      const metadata = await analyzeItemImage(apiKey, file);
+      const proposedTags = [
+        ...(metadata.tags || []),
+        ...(metadata.colors || [])
+      ].map((t) => t.toLowerCase().trim()).filter(Boolean);
+      const fields = {};
+      if ((metadata.title || '').trim()) fields.name = metadata.title.trim();
+      if ((metadata.description || '').trim()) fields.description = metadata.description.trim();
+      if (proposedTags.length) fields.search_tags = proposedTags;
+      if ((metadata.visible_text || '').trim()) fields.visible_text = metadata.visible_text.trim();
+      const updated = await updateItem(item.id, fields);
+      setItem(updated);
+      onRefresh?.();
+    } catch (err) {
+      console.error(err);
+      setAutoError(err.message || 'AI analysis failed.');
+    } finally {
+      setAutoAnalyzing(false);
+    }
+  }, [item]);
+
+  // Auto-run analysis on a freshly created item so Add Item lands on populated
+  // details (progress bar, not the review modal).
+  useEffect(() => {
+    if (!autoAnalyze || autoAnalyzeStarted.current) return;
+    if (!item) return;
+    const apiKey = localStorage.getItem('gemini_api_key');
+    if (!apiKey) return;
+    const hasData =
+      (item.name && item.name.trim()) ||
+      (item.description && item.description.trim()) ||
+      (item.search_tags && item.search_tags.length);
+    if (hasData) return;
+    autoAnalyzeStarted.current = true;
+    runAutoAnalyze();
+  }, [item, autoAnalyze, runAutoAnalyze]);
+
   const aiAnalysisDisabled = !localStorage.getItem('gemini_api_key') || !item?.image_url;
 
   if (loading) {
     return (
       <div className="w-full max-w-4xl mx-auto py-12 text-center space-y-4">
         <RefreshCw className="w-8 h-8 animate-spin mx-auto text-purple-500" />
-        <p className="text-sm text-slate-400">Loading item details...</p>
+        <p className="text-sm text-slate-400">
+          {createStatus || 'Loading item details...'}
+        </p>
       </div>
     );
   }
@@ -197,12 +348,7 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
   if (error || !item) {
     return (
     <div className="w-full max-w-4xl min-w-[min(80vw,56rem)] mx-auto py-6 px-4 space-y-6">
-        <button
-          onClick={() => onBack()}
-          className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
+        <BackButton onClick={() => onBack()} />
 
         <div className="glass-panel rounded-3xl p-8 text-center shadow-2xl border border-slate-800/80">
           <p className="text-slate-300 font-medium">{error || 'Item not found'}</p>
@@ -221,12 +367,7 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
     <div className="w-full max-w-4xl min-w-[min(80vw,56rem)] mx-auto py-6 px-4 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <button
-          onClick={() => onBack()}
-          className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
+        <BackButton onClick={() => onBack()} />
 
         <div className="relative" ref={overflowMenuRef}>
           <button
@@ -243,7 +384,7 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
               <button
                 onClick={() => {
                   setShowOverflowMenu(false);
-                  onNavigate('edit-item', { itemId });
+                  onNavigate('edit-item', { itemId: item.id });
                 }}
                 className="w-full px-4 py-3 text-left text-sm text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-2 transition-colors cursor-pointer"
               >
@@ -278,63 +419,115 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
         </div>
       </div>
 
-
-      {/* Item hero card */}
-      <div className="glass-panel rounded-3xl overflow-hidden shadow-2xl relative flex flex-col md:flex-row">
-        {/* Left side/top: Photo */}
-        <div className="w-full md:w-1/3 aspect-video md:aspect-auto md:min-h-[160px] bg-slate-900 flex items-center justify-center relative border-b md:border-b-0 md:border-r border-slate-800/60">
-          {itemImageSrc ? (
-            <button onClick={() => setShowFullImage(true)} className="w-full h-full block cursor-pointer">
-              <img src={itemImageSrc} alt={item.name || 'Untitled Item'} className="w-full h-full object-cover" />
+      {autoAnalyze && (
+        <div
+          className={`glass-panel rounded-2xl p-4 flex items-center gap-3 shadow-2xl border ${
+            autoAnalyzing
+              ? 'border-yellow-500/30 bg-yellow-500/5'
+              : autoError
+                ? 'border-red-500/30 bg-red-500/5'
+                : 'border-green-500/30 bg-green-500/5'
+          }`}
+        >
+          {autoAnalyzing && (
+            <RefreshCw className="w-5 h-5 animate-spin text-yellow-400 shrink-0" />
+          )}
+          {!autoAnalyzing && autoError && (
+            <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
+          )}
+          {!autoAnalyzing && !autoError && (
+            <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" />
+          )}
+          <span
+            className={`text-sm font-medium ${
+              autoAnalyzing
+                ? 'text-yellow-300'
+                : autoError
+                  ? 'text-red-300'
+                  : 'text-green-300'
+            }`}
+          >
+            {autoAnalyzing
+              ? 'Analyzing image…'
+              : autoError
+                ? 'AI analysis failed'
+                : 'Analysis complete'}
+          </span>
+          {autoError && (
+            <button
+              type="button"
+              onClick={runAutoAnalyze}
+              className="ml-auto px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-200 text-xs font-semibold cursor-pointer"
+            >
+              Retry
             </button>
-          ) : (
-            <Package className="w-12 h-12 text-slate-700 stroke-1" />
           )}
         </div>
+      )}
 
-        {/* Right side/details */}
-        <div className="p-6 flex-1 flex flex-col justify-between relative">
-          <div className="space-y-3">
-            <h1 className="text-xl font-bold tracking-tight text-slate-100 flex items-center gap-2">
-              {item.name || 'Untitled Item'}
-            </h1>
 
-            {/* Clickable bin + location pill */}
-            <button
-              onClick={() => item.bin_id && onNavigate('bin-details', { binId: item.bin_id })}
-              disabled={!item.bin_id}
-              className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-all cursor-pointer ${
-                item.bin_id
-                  ? 'bg-pink-500/10 border-pink-500/20 text-pink-300 hover:bg-pink-500/20 hover:border-pink-500/40'
-                  : 'bg-slate-800/60 border-slate-800 text-slate-500 cursor-not-allowed'
-              }`}
-              title={bin ? `${bin.name} — ${bin.location}` : 'Bin location'}
-            >
-              <MapPin className="w-4 h-4 text-pink-400 shrink-0" />
-              <span>{bin ? `${bin.name} • ${bin.location}` : item.bin_name || 'Unknown bin'}</span>
-            </button>
+      {/* Item hero card — small image floats left, text wraps around it */}
+      <div className="glass-panel rounded-3xl p-5 shadow-2xl relative flow-root">
+        {itemImageSrc ? (
+          <button
+            onClick={() => setShowFullImage(true)}
+            className="float-left mr-4 mb-2 block cursor-pointer rounded-2xl overflow-hidden bg-slate-900 max-h-[25vh] max-w-[40%]"
+            title="Tap to view full image"
+          >
+            <img
+              src={itemImageSrc}
+              alt={item.name || 'Untitled Item'}
+              className="block h-full w-auto max-h-[25vh] object-cover"
+            />
+          </button>
+        ) : (
+          <div className="float-left mr-4 mb-2 flex items-center justify-center rounded-2xl bg-slate-900 max-h-[25vh] max-w-[40%] aspect-square">
+            <Package className="w-12 h-12 text-slate-700 stroke-1" />
           </div>
+        )}
 
-          <div className="mt-4 md:mt-0 pt-4 border-t border-slate-800/40 flex items-center justify-between text-[11px] text-slate-400">
-            <span>Created {new Date(item.created_at).toLocaleDateString()}</span>
+        <div className="space-y-3">
+          <h1 className="text-xl font-bold tracking-tight text-slate-100 break-words">
+            {item.name || 'Untitled Item'}
+          </h1>
+
+          {/* Clickable bin + location pill */}
+          <button
+            onClick={() => item.bin_id && onNavigate('bin-details', { binId: item.bin_id })}
+            disabled={!item.bin_id}
+            className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-all cursor-pointer ${
+              item.bin_id
+                ? 'bg-pink-500/10 border-pink-500/20 text-pink-300 hover:bg-pink-500/20 hover:border-pink-500/40'
+                : 'bg-slate-800/60 border-slate-800 text-slate-500 cursor-not-allowed'
+            }`}
+            title={bin ? `${bin.name} — ${bin.location}` : 'Bin location'}
+          >
+            <MapPin className="w-4 h-4 text-pink-400 shrink-0" />
+            <span>{bin ? `${bin.name} • ${bin.location}` : item.bin_name || 'Unknown bin'}</span>
+          </button>
+
+          <div className="pt-2 text-[11px] text-slate-400">
+            Created {new Date(item.created_at).toLocaleDateString()}
           </div>
         </div>
       </div>
 
       {/* Description */}
-      {item.description && (
-        <div className="glass-panel rounded-3xl p-6 shadow-2xl border border-slate-800/80 space-y-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Description</h2>
+      <div className="glass-panel rounded-3xl p-6 shadow-2xl border border-slate-800/80 space-y-3">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Description</h2>
+        {item.description ? (
           <p className="text-sm text-slate-300 leading-relaxed">{item.description}</p>
-        </div>
-      )}
+        ) : (
+          <p className="text-sm text-slate-500 italic">Waiting for AI analysis…</p>
+        )}
+      </div>
 
       {/* Tags */}
-      {item.search_tags && item.search_tags.length > 0 && (
-        <div className="glass-panel rounded-3xl p-6 shadow-2xl border border-slate-800/80 space-y-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-            <Tag className="w-3 h-3 text-purple-400" /> Identified Tags
-          </h2>
+      <div className="glass-panel rounded-3xl p-6 shadow-2xl border border-slate-800/80 space-y-3">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+          <Tag className="w-3 h-3 text-purple-400" /> Identified Tags
+        </h2>
+        {item.search_tags && item.search_tags.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {item.search_tags.map((tag) => (
               <span
@@ -346,20 +539,24 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
               </span>
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <p className="text-sm text-slate-500 italic">Waiting for AI analysis…</p>
+        )}
+      </div>
 
       {/* Visible text */}
-      {item.visible_text && (
-        <div className="glass-panel rounded-3xl p-6 shadow-2xl border border-slate-800/80 space-y-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-            <Eye className="w-3 h-3 text-pink-400" /> Visible Serial / Labels
-          </h2>
+      <div className="glass-panel rounded-3xl p-6 shadow-2xl border border-slate-800/80 space-y-3">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+          <Eye className="w-3 h-3 text-pink-400" /> Visible Serial / Labels
+        </h2>
+        {item.visible_text ? (
           <pre className="bg-slate-950 p-4 rounded-2xl border border-slate-850 font-mono text-[11px] text-purple-300 whitespace-pre-wrap break-all max-h-48 overflow-y-auto">
             {item.visible_text}
           </pre>
-        </div>
-      )}
+        ) : (
+          <p className="text-sm text-slate-500 italic">Waiting for AI analysis…</p>
+        )}
+      </div>
 
       {/* AI Analysis Review Modal */}
       {aiReviewOpen && (
@@ -384,10 +581,12 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
             )}
 
             {!aiLoading && aiError && (
-              <div className="p-3.5 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2 text-xs text-red-300">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>{aiError}</span>
-              </div>
+              <MessageBanner
+                type="error"
+                message={aiError}
+                className="p-3.5 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2 text-xs text-red-300"
+                iconClassName="w-4 h-4 shrink-0 mt-0.5"
+              />
             )}
 
             {!aiLoading && aiProposed && (
@@ -486,13 +685,10 @@ export default function ItemDetails({ onNavigate, itemId, onBack, refreshNonce }
           onClick={() => setShowFullImage(false)}
         >
           <div className="pt-[max(env(safe-area-inset-top),2rem)] px-4">
-            <button
+            <BackButton
               onClick={() => setShowFullImage(false)}
-              className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
               aria-label="Back"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
+            />
           </div>
           <div className="flex-1 flex items-center justify-center p-6">
             <img

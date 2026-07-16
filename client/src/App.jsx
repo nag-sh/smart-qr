@@ -2,9 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, useSearchParams, useNavigate } from 'react-router-dom';
 import { parseModalStack, stackToSearchString, dedupeStack } from './modalStack.js';
 import { Capacitor } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
 import { useEdgeGestures } from './hooks/useEdgeGestures.js';
 import { Print } from './plugins/print.js';
-import { QrCode, Settings as SettingsIcon, Printer, Info, ArrowLeft, Plus, Search as SearchIcon, AlertTriangle } from 'lucide-react';
+import { QrCode, Settings as SettingsIcon, Printer, Info, Plus, Search as SearchIcon } from 'lucide-react';
+import BackButton from './components/BackButton';
+import MessageBanner from './components/MessageBanner';
 
 // Import Views
 import Search from './views/Search';
@@ -12,11 +15,11 @@ import Scanner from './views/Scanner';
 import CreateBin from './views/CreateBin';
 import BinDetails from './views/BinDetails';
 import ItemDetails from './views/ItemDetails';
-import EditItem from './views/EditItem';
-import AddItem from './views/AddItem';
+import ItemForm from './views/ItemForm';
 import Settings from './views/Settings';
 import RestorePoints from './views/RestorePoints';
 import PrintRandomized from './views/PrintRandomized';
+import MultiAddModal from './views/MultiAddModal';
 import QRCode from 'qrcode';
 
 // ─── Glassy modal shell (rendered above Search + bottom nav) ───────────────
@@ -29,13 +32,11 @@ function ModalShell({ onClose, hideClose = false, children }) {
       <div className="w-full sm:w-[96%] sm:max-w-4xl" onClick={(e) => e.stopPropagation()}>
         <div className="glass-panel-modal w-full max-h-[90vh] overflow-y-auto overflow-x-hidden rounded-3xl relative animate-in fade-in zoom-in-95 duration-200">
           {!hideClose && (
-            <button
+            <BackButton
               onClick={onClose}
-              className="absolute top-4 left-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              className="absolute top-4 left-4"
               aria-label="Back to Search"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
+            />
           )}
           {children}
         </div>
@@ -120,13 +121,34 @@ function AppContent() {
   // no prior entry then, so navigate(-1) would exit the app or get stuck.
   const pushDepth = useRef(0);
 
-  const onNavigate = (viewName, params = {}) => {
+  const onNavigate = (viewName, params = {}, options = {}) => {
     if (viewName === 'search') {
       if (params.location) {
         navigate('/?filterLocation=' + encodeURIComponent(params.location));
       } else {
         navigate('/');
       }
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      return;
+    }
+
+    // resetStack: collapse the whole modal stack to just this view. Used when
+    // snapping a new item — the prior stack (bin → add-item) should give way to
+    // the loading + details screen, not stay stacked behind it. Back from here
+    // returns to the root (home) rather than re-opening the source modals.
+    if (options.resetStack) {
+      const newStack = [{ type: viewName, params }];
+      navigate({ search: stackToSearchString(newStack) }, { replace: true });
+      pushDepth.current = 0;
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      return;
+    }
+
+    if (options.replace) {
+      const newStack = stack.length > 0
+        ? [...stack.slice(0, -1), { type: viewName, params }]
+        : [{ type: viewName, params }];
+      navigate({ search: stackToSearchString(newStack) }, { replace: true });
       window.scrollTo({ top: 0, behavior: 'instant' });
       return;
     }
@@ -171,13 +193,43 @@ function AppContent() {
   const rootRef = useRef(null);
   useEdgeGestures(rootRef, { onBack });
 
+  // Android system back gesture → same in-app back the edge-swipe uses, so a
+  // left-edge swipe always pops one modal layer instead of closing the app
+  // (the OS default). Registering the listener disables that default. On web
+  // the browser owns back, so skip entirely.
+  useEffect(() => {
+    if (Capacitor.getPlatform() !== 'android') return;
+    let handle;
+    let cancelled = false;
+    CapacitorApp.addListener('backButton', () => {
+      if (stack.length > 0) onBack();
+      else CapacitorApp.exitApp();
+    }).then((h) => { if (!cancelled) handle = h; });
+    return () => { cancelled = true; handle?.remove(); };
+  }, [stack.length, onBack]);
+
   // central printing trigger
-  const handlePrintBin = (qrId, binName) => {
+  const handlePrintBin = async (qrId, binName) => {
     // Avoid the two print containers ever coexisting in print media.
     setRandomPrintData(null);
-    setPrintData({ qr_id: qrId, name: binName });
     setPrintError('');
     setShowPrintHelper(true);
+
+    let dataUrl = '';
+    try {
+      dataUrl = await QRCode.toDataURL(qrId, {
+        width: 1000,
+        margin: 1,
+        errorCorrectionLevel: 'M'
+      });
+    } catch (err) {
+      console.error('QR generation failed:', err);
+      setPrintError('Failed to generate QR code');
+      return;
+    }
+
+    setPrintData({ qr_id: qrId, name: binName, dataUrl });
+
     // Give the DOM a beat to render the hidden label, then use the native
     // print path on Android (WebViews don't support window.print) and the
     // standard browser print dialog everywhere else.
@@ -254,19 +306,20 @@ function AppContent() {
     if (stack.length === 0) return null;
     return stack.map((layer, i) => {
       const { type, params } = layer;
-      const hideClose = ['restore-points', 'bin-details', 'item-details', 'add-item', 'create-bin', 'scanner'].includes(type);
+      const hideClose = ['restore-points', 'bin-details', 'item-details', 'add-item', 'create-bin'].includes(type);
       const isLast = i === stack.length - 1;
 
       let view;
       switch (type) {
-        case 'scanner': view = <Scanner onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
-        case 'create-bin': view = <CreateBin qrId={params.qrId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} refreshNonce={refreshNonce} />; break;
-        case 'bin-details': view = <BinDetails binId={params.binId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
-        case 'item-details': view = <ItemDetails itemId={params.itemId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
-        case 'edit-item': view = <EditItem itemId={params.itemId} onBack={onBack} refreshNonce={refreshNonce} />; break;
-        case 'add-item': view = <AddItem binId={params.binId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
+        case 'scanner': view = <Scanner onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} onRefresh={bumpRefresh} />; break;
+        case 'create-bin': view = <CreateBin qrId={params.qrId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} refreshNonce={refreshNonce} onRefresh={bumpRefresh} />; break;
+        case 'bin-details': view = <BinDetails binId={params.binId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} modalTypes={modalTypes} refreshNonce={refreshNonce} onRefresh={bumpRefresh} />; break;
+        case 'multi-add': view = <MultiAddModal binId={params.binId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} onRefresh={bumpRefresh} />; break;
+        case 'item-details': view = <ItemDetails itemId={params.itemId} autoAnalyze={params.autoAnalyze} pendingCreate={params.pendingCreate} binId={params.binId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} onRefresh={bumpRefresh} />; break;
+        case 'edit-item': view = <ItemForm mode="edit" itemId={params.itemId} onBack={onBack} refreshNonce={refreshNonce} onRefresh={bumpRefresh} />; break;
+        case 'add-item': view = <ItemForm mode="create" binId={params.binId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} onRefresh={bumpRefresh} />; break;
         case 'settings': view = <Settings onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
-        case 'restore-points': view = <RestorePoints onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
+        case 'restore-points': view = <RestorePoints onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} refreshNonce={refreshNonce} onRefresh={bumpRefresh} />; break;
         case 'print-randomized': view = <PrintRandomized onNavigate={onNavigate} onBack={onBack} onPrintRandom={handlePrintRandom} />; break;
         default: return null;
       }
@@ -309,7 +362,7 @@ function AppContent() {
 
           {/* Scanner Tab */}
           <button
-            onClick={() => onNavigate('scanner')}
+            onClick={() => onNavigate('scanner', {}, { replace: true })}
             className={`flex flex-col items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
               stack[stack.length - 1]?.type === 'scanner'
                 ? 'text-purple-400 bg-purple-500/10'
@@ -320,9 +373,9 @@ function AppContent() {
             <span className="text-[10px] font-semibold tracking-wider">Scan</span>
           </button>
 
-          {/* Quick Add Tab */}
+          {/* Add Tab */}
           <button
-            onClick={() => onNavigate('quick-add')}
+            onClick={() => onNavigate('quick-add', {}, { replace: true })}
             className="flex flex-col items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer text-slate-400 hover:text-slate-200"
           >
             <Plus className="w-5 h-5" />
@@ -336,17 +389,15 @@ function AppContent() {
       {showPrintHelper && printData && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm no-print">
           <div className="glass-panel w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-slate-800 relative text-center space-y-5 animate-in fade-in zoom-in-95 duration-200">
-            <button
+            <BackButton
               onClick={() => {
                 setShowPrintHelper(false);
                 setPrintData(null);
                 setPrintError('');
               }}
-              className="absolute top-4 left-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              className="absolute top-4 left-4"
               aria-label="Back to Search"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
+            />
 
             <div className="p-3 bg-purple-500/10 rounded-full text-purple-400 w-fit mx-auto">
               <Printer className="w-7 h-7" />
@@ -360,10 +411,12 @@ function AppContent() {
             </div>
 
             {printError && (
-              <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-2.5 text-xs text-red-300">
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>{printError}</span>
-              </div>
+              <MessageBanner
+                type="error"
+                message={printError}
+                className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-2.5 text-xs text-red-300"
+                iconClassName="w-4 h-4 shrink-0 mt-0.5"
+              />
             )}
 
             {/* Android Settings printer deep-link fallback */}
@@ -402,7 +455,7 @@ function AppContent() {
       {printData && (
         <div className="print-label-only hidden">
           <img
-            src={`https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&data=${encodeURIComponent(printData.qr_id)}`}
+            src={printData.dataUrl}
             alt="Print QR Label"
             className="print-qr-code"
           />

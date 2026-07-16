@@ -2,9 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Key, Eye, EyeOff, Save, CheckCircle2, AlertTriangle, 
   ExternalLink, FileJson, Download, Upload, Server,
-  RefreshCw, ArrowDownToLine, ArrowUpFromLine, History, ArrowRight, ArrowLeft, Cloud, Share2
+  RefreshCw, ArrowDownToLine, ArrowUpFromLine, History, ArrowRight, Cloud, Share2
 } from 'lucide-react';
-import { isNative } from '../utils/platform.js';
+import { Capacitor } from '@capacitor/core';
+import BackButton from '../components/BackButton';
+import MessageBanner from '../components/MessageBanner';
 import { 
   getStorageMode, setStorageMode as persistStorageMode, initStorage,
   getLocalExportData, restoreLocalData,
@@ -16,6 +18,9 @@ import {
 import { saveBackup, shareBackup, pickBackup } from '../services/nativeFiles';
 import JSZip from 'jszip';
 
+const isUserCancel = (err) =>
+  typeof err?.message === 'string' && err.message.toLowerCase().includes('cancel');
+
 export default function Settings({ onNavigate, onBack, modalTypes }) {
   const [apiKey, setApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
@@ -25,7 +30,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
   // Storage and database mode states
   const [storageMode, setStorageModeState] = useState(getStorageMode()); // 'server' | 'local'
 
-  const isNativePlatform = isNative();
+  const isNativePlatform = Capacitor.isNativePlatform();
 
   const refreshStorageMode = async () => {
     await initStorage();
@@ -37,6 +42,9 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
   const [importSuccess, setImportSuccess] = useState('');
   const [importError, setImportError] = useState('');
   const [includeImages, setIncludeImages] = useState(true);
+
+  // Export operations status (success / error banner after Save As / Share)
+  const [exportStatus, setExportStatus] = useState(null); // { type: 'success' | 'error', message }
 
 
 
@@ -125,7 +133,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
     clearSyncFeedback();
     if (deleteUnreferenced) {
       setPendingSyncDirection(direction);
-      onNavigate('settings-warning');
+      onNavigate('settings-warning', {}, { replace: true });
     } else {
       direction === 'pull' ? handleSyncPull() : handleSyncPush();
     }
@@ -162,7 +170,7 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
   const handleCloudClick = () => {
     setCloudInput(cloudUrl || 'https://smartqr.nag.sh/api');
     setCloudTokenInput(cloudToken || '');
-    onNavigate('settings-cloud');
+    onNavigate('settings-cloud', {}, { replace: true });
   };
 
   const handleCloudConnect = async () => {
@@ -308,23 +316,29 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
 
   const handleLocalExport = async (e) => {
     e.preventDefault();
+    setExportStatus(null);
     try {
       const { zipBlob, filename } = await generateExportZip();
       await saveBackup(zipBlob, filename);
+      setExportStatus({ type: 'success', message: 'Backup saved to the location you chose.' });
     } catch (err) {
+      if (isUserCancel(err)) return;
       console.error(err);
-      alert('Failed to generate local export file.');
+      setExportStatus({ type: 'error', message: 'Could not save backup: ' + (err?.message || 'Unknown error') });
     }
   };
 
   const handleShareExport = async (e) => {
     e.preventDefault();
+    setExportStatus(null);
     try {
       const { zipBlob, filename } = await generateExportZip();
       await shareBackup(zipBlob, filename);
+      setExportStatus({ type: 'success', message: 'Backup shared.' });
     } catch (err) {
+      if (isUserCancel(err)) return;
       console.error(err);
-      alert('Failed to generate local export file.');
+      setExportStatus({ type: 'error', message: 'Could not share backup: ' + (err?.message || 'Unknown error') });
     }
   };
 
@@ -636,16 +650,20 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
           </div>
         )}
         {syncSuccess && (
-          <div className="mt-3 flex items-start gap-2 text-xs text-emerald-300 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-            <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-            <span>{syncSuccess}</span>
-          </div>
+          <MessageBanner
+            type="success"
+            message={syncSuccess}
+            className="mt-3 flex items-start gap-2 text-xs text-emerald-300 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl"
+            iconClassName="w-3.5 h-3.5 shrink-0 mt-0.5"
+          />
         )}
         {syncError && (
-          <div className="mt-3 flex items-start gap-2 text-xs text-red-300 p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
-            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-            <span>{syncError}</span>
-          </div>
+          <MessageBanner
+            type="error"
+            message={syncError}
+            className="mt-3 flex items-start gap-2 text-xs text-red-300 p-3 bg-red-500/10 border border-red-500/20 rounded-xl"
+            iconClassName="w-3.5 h-3.5 shrink-0 mt-0.5"
+          />
         )}
       </section>
       )}
@@ -693,17 +711,21 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
           </div>
 
           {error && (
-            <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-2.5 text-xs text-red-300">
-              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{error}</span>
-            </div>
+            <MessageBanner
+              type="error"
+              message={error}
+              className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-2.5 text-xs text-red-300"
+              iconClassName="w-4 h-4 shrink-0 mt-0.5"
+            />
           )}
 
           {saved && (
-            <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center gap-2 text-xs text-emerald-300">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>API key updated successfully!</span>
-            </div>
+            <MessageBanner
+              type="success"
+              message="API key updated successfully!"
+              className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center gap-2 text-xs text-emerald-300"
+              iconClassName="w-4 h-4 shrink-0"
+            />
           )}
 
           <div className="flex gap-3">
@@ -854,6 +876,18 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
                   </span>
                 </div>
               </label>
+
+              {exportStatus && (
+                <MessageBanner
+                  type={exportStatus.type}
+                  message={exportStatus.message}
+                  onClose={() => setExportStatus(null)}
+                  className={exportStatus.type === 'success'
+                    ? 'p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-start gap-2.5 text-xs text-emerald-300'
+                    : 'p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-2.5 text-xs text-red-300'}
+                  iconClassName="w-4 h-4 shrink-0 mt-0.5"
+                />
+              )}
           </div>
 
           {/* Import Backup utilities */}
@@ -880,17 +914,21 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
 
             {/* Operation Feedback */}
             {importError && (
-              <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-2.5 text-xs text-red-300">
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>{importError}</span>
-              </div>
+              <MessageBanner
+                type="error"
+                message={importError}
+                className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-2.5 text-xs text-red-300"
+                iconClassName="w-4 h-4 shrink-0 mt-0.5"
+              />
             )}
 
             {importSuccess && (
-              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center gap-2 text-xs text-emerald-300">
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>{importSuccess}</span>
-              </div>
+              <MessageBanner
+                type="success"
+                message={importSuccess}
+                className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center gap-2 text-xs text-emerald-300"
+                iconClassName="w-4 h-4 shrink-0"
+              />
             )}
           </div>
       </section>
@@ -930,13 +968,11 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
       {!isNativePlatform && modalTypes?.includes('settings-warning') && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm pointer-events-auto">
           <div className="glass-panel w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-red-500/20 space-y-5 relative">
-            <button
+            <BackButton
               onClick={() => { onBack(); setPendingSyncDirection(null); }}
-              className="absolute top-4 left-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              className="absolute top-4 left-4"
               aria-label="Back"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
+            />
 
             <div className="text-center space-y-3">
               <div className="p-3 bg-red-500/15 rounded-full w-fit mx-auto">
@@ -950,12 +986,16 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
               </p>
             </div>
 
-            <div className="bg-amber-500/10 border border-amber-500/25 rounded-xl p-3 flex gap-2 text-[11px] text-amber-300">
-              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-400" />
-              <span>
-                We strongly recommend <strong>exporting a backup</strong> from the Data Operations section before proceeding.
-              </span>
-            </div>
+            <MessageBanner
+              type="warning"
+              message={
+                <span>
+                  We strongly recommend <strong>exporting a backup</strong> from the Data Operations section before proceeding.
+                </span>
+              }
+              className="bg-amber-500/10 border border-amber-500/25 rounded-xl p-3 flex gap-2 text-[11px] text-amber-300"
+              iconClassName="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-400"
+            />
 
             <div className="flex flex-col gap-2 pt-1">
               <button
@@ -985,13 +1025,11 @@ export default function Settings({ onNavigate, onBack, modalTypes }) {
             className="glass-panel w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-slate-800/60 space-y-5 relative"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
+            <BackButton
               onClick={handleCloudCancel}
-              className="absolute top-4 left-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              className="absolute top-4 left-4"
               aria-label="Back"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
+            />
 
             <div className="text-center space-y-3">
               <div className="p-3 bg-purple-500/15 rounded-full w-fit mx-auto">

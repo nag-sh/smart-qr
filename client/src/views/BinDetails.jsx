@@ -1,16 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Box, MapPin, QrCode, Plus, AlertCircle, RefreshCw, ArrowLeft, 
+  Box, MapPin, QrCode, Plus, AlertCircle, RefreshCw, 
   Package, Printer, Edit, Trash2, Check, MoreHorizontal,
-  FolderTree, LayoutGrid, List, Image as ImageIcon
+  FolderTree, Layers, LayoutGrid, List, Image as ImageIcon
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { getBin, getBins, updateBin, deleteBin, batchManageItems } from '../services/storage';
-import imageCompression from 'browser-image-compression';
+import { compressImage } from '../utils/imageCompression';
 import EntityList from '../components/EntityList';
+import BackButton from '../components/BackButton';
+import LayoutModeToggle from '../components/LayoutModeToggle';
 import useImageSrc from '../hooks/useImageSrc';
+import LocationPicker from '../components/LocationPicker';
+import MessageBanner from '../components/MessageBanner';
 
-export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, modalTypes, refreshNonce }) {
+export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, modalTypes, refreshNonce, onRefresh }) {
   const [bin, setBin] = useState(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,6 +29,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
   const [savingBin, setSavingBin] = useState(false);
   const [allLocations, setAllLocations] = useState([]);
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const binFileRef = useRef(null);
 
   // 2. Delete/Batch state
@@ -34,6 +39,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
   const [batchAction, setBatchAction] = useState('reassign'); // 'reassign' | 'delete'
   const [batchTargetBin, setBatchTargetBin] = useState('');
   const [batchWorking, setBatchWorking] = useState(false);
+  const [batchError, setBatchError] = useState('');
 
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const [showQrView, setShowQrView] = useState(false);
@@ -101,6 +107,23 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
     }
   }, [binId, refreshNonce]);
 
+  const binPollRef = useRef(batchWorking);
+  useEffect(() => { binPollRef.current = batchWorking; }, [batchWorking]);
+
+  useEffect(() => {
+    if (!binId) return;
+    const id = setInterval(() => {
+      if (binPollRef.current) return;
+      getBin(binId)
+        .then((data) => { setBin(data.bin); setItems(data.items); })
+        .catch((err) => console.error('[bin-poll] failed:', err));
+      getBins()
+        .then((binsList) => setAllLocations(Array.from(new Set(binsList.map(b => b.location).filter(Boolean)))))
+        .catch((err) => console.error('[bin-poll] locations failed:', err));
+    }, 5000);
+    return () => clearInterval(id);
+  }, [binId]);
+
   useEffect(() => {
     if (!showOverflowMenu) return;
     const handleClickOutside = (e) => {
@@ -125,10 +148,6 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
     setVisibleItemsCount(12);
   }, [binId, layoutMode]);
 
-  useEffect(() => {
-    localStorage.setItem('view_mode_bin_items', layoutMode);
-  }, [layoutMode]);
-
   if (loading) {
     return (
       <div className="w-full max-w-4xl mx-auto py-12 text-center space-y-4">
@@ -141,12 +160,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
   if (error || !bin) {
     return (
       <div className="w-full max-w-4xl mx-auto py-6 px-4 space-y-4">
-        <button
-          onClick={() => onBack()}
-          className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
+        <BackButton onClick={() => onBack()} />
         <div className="glass-panel rounded-3xl p-6 text-center space-y-4">
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto" />
           <div>
@@ -167,8 +181,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
 
   const handleProcessBinImage = async (file) => {
     try {
-      const options = { maxSizeMB: 0.25, maxWidthOrHeight: 1024, useWebWorker: true };
-      const compressed = await imageCompression(file, options);
+      const compressed = await compressImage(file);
       setEditBinImageFile(compressed);
       if (editBinImagePreview) URL.revokeObjectURL(editBinImagePreview);
       setEditBinImagePreview(URL.createObjectURL(compressed));
@@ -179,6 +192,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
 
   const handleSaveBin = async () => {
     setSavingBin(true);
+    setSaveError('');
     try {
       const updated = await updateBin(bin.id, {
         name: editBinName.trim(),
@@ -186,9 +200,10 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
       }, editBinImageFile);
       setBin(updated);
       setEditingBin(false);
+      onRefresh?.();
       fetchBinDetails();
     } catch (err) {
-      alert(err.message || 'Failed to update bin');
+      setSaveError(err.message || 'Failed to update bin');
     } finally {
       setSavingBin(false);
     }
@@ -198,6 +213,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
     setDeletingBin(true);
     try {
       await deleteBin(bin.id);
+      onRefresh?.();
       onNavigate('search');
     } catch (err) {
       if (err.blocked) {
@@ -205,7 +221,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
         setAllBins(binsList.filter(b => b.id !== bin.id));
         setSelectedItems(new Set(items.map(i => i.id)));
         setBatchTargetBin(binsList.find(b => b.id !== bin.id)?.id || '');
-        onNavigate('batch-manage', { binId: bin.id });
+        onNavigate('batch-manage', { binId: bin.id }, { replace: true });
       } else {
         alert(err.message || 'Failed to delete bin');
       }
@@ -217,8 +233,10 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
   const handleBatchApply = async () => {
     if (selectedItems.size === 0) return;
     setBatchWorking(true);
+    setBatchError('');
     try {
       await batchManageItems(bin.id, batchAction, Array.from(selectedItems), batchTargetBin);
+      onRefresh?.();
       onBack();
       // Try deleting now empty bin
       try {
@@ -228,7 +246,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
         fetchBinDetails();
       }
     } catch (err) {
-      alert(err.message || 'Failed batch action');
+      setBatchError(err.message || 'Failed batch action');
     } finally {
       setBatchWorking(false);
     }
@@ -238,12 +256,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
     <div className="w-full max-w-4xl min-w-[min(80vw,56rem)] mx-auto py-6 px-4 space-y-6">
       {/* Navigation header */}
       <div className="flex items-center justify-between">
-        <button
-          onClick={() => onBack()}
-          className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
+        <BackButton onClick={() => onBack()} />
         
           <div className="flex items-center gap-2">
             <button
@@ -345,78 +358,27 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Location</label>
-                <div className="relative">
-                  <input 
-                    type="text" 
-                    value={editBinLocation} 
-                    onChange={(e) => {
-                      setEditBinLocation(e.target.value);
-                      setShowLocationDropdown(true);
-                    }}
-                    onFocus={() => setShowLocationDropdown(true)}
-                    className="w-full px-4 py-3 rounded-xl glass-input text-sm text-slate-100" 
-                  />
-
-                  {/* Click outside to close helper */}
-                  {showLocationDropdown && allLocations.length > 5 && (
-                    <div 
-                      className="fixed inset-0 z-30" 
-                      onClick={() => setShowLocationDropdown(false)}
-                    />
-                  )}
-
-                  {/* Dropdown for excessive locations count (> 5) */}
-                  {showLocationDropdown && allLocations.length > 5 && (
-                    <div className="absolute left-0 right-0 mt-1 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl z-40 max-h-48 overflow-y-auto">
-                      {allLocations
-                        .filter(loc => loc.toLowerCase().includes(editBinLocation.toLowerCase()))
-                        .map(loc => (
-                          <button
-                            key={loc}
-                            type="button"
-                            onClick={() => {
-                              setEditBinLocation(loc);
-                              setShowLocationDropdown(false);
-                            }}
-                            className="w-full px-4 py-2.5 text-left text-xs text-slate-355 hover:bg-purple-600/25 hover:text-white transition-colors block"
-                          >
-                            {loc}
-                          </button>
-                        ))}
-                      {allLocations.filter(loc => loc.toLowerCase().includes(editBinLocation.toLowerCase())).length === 0 && (
-                        <div className="px-4 py-2.5 text-xs text-slate-500 italic">No matching locations. Keep typing to add new.</div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Inline clickable list for smaller locations count (<= 5) */}
-                {allLocations.length > 0 && allLocations.length <= 5 && (
-                  <div className="mt-2.5 space-y-1.5">
-                    <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Saved Locations:</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {allLocations.map(loc => (
-                        <button
-                          key={loc}
-                          type="button"
-                          onClick={() => setEditBinLocation(loc)}
-                          className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-bold cursor-pointer transition-all active:scale-95 ${
-                            editBinLocation.toLowerCase() === loc.toLowerCase()
-                              ? 'bg-purple-550/20 border-purple-500/40 text-purple-300'
-                              : 'bg-slate-950/45 border-slate-850 hover:border-slate-700 text-slate-400 hover:text-slate-200'
-                          }`}
-                        >
-                          {loc}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <LocationPicker
+                inputCls="w-full px-4 py-3 rounded-xl glass-input text-sm text-slate-100"
+                labelCls="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2"
+                dropdownItemCls="w-full px-4 py-2.5 text-left text-xs text-slate-355 hover:bg-purple-600/25 hover:text-white transition-colors block"
+                value={editBinLocation}
+                onChange={setEditBinLocation}
+                onFocus={() => setShowLocationDropdown(true)}
+                allLocations={allLocations}
+                showDropdown={showLocationDropdown}
+                setShowDropdown={setShowLocationDropdown}
+                label="Location"
+                savedLocationsLabel="Saved Locations:"
+              />
             </div>
           </div>
+
+          {saveError && (
+            <MessageBanner type="error" className="mt-2">
+              {saveError}
+            </MessageBanner>
+          )}
 
           <div className="flex gap-2 justify-end pt-2">
             <button
@@ -480,6 +442,14 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
         <Plus className="w-5 h-5" /> Add Item to Bin
       </button>
 
+      {/* Action Button: Multi-add (bulk entry) */}
+      <button
+        onClick={() => onNavigate('multi-add', { binId: bin.id }, { replace: true })}
+        className="w-full py-4 rounded-2xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-98 cursor-pointer"
+      >
+        <Layers className="w-5 h-5" /> Multi-add Items
+      </button>
+
       {/* Items List */}
       <div>
         <div className="flex items-center justify-between mb-4 px-1">
@@ -488,41 +458,12 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
           </h2>
 
           {items.length > 0 && (
-            <div className="flex bg-slate-900/60 p-1 rounded-xl border border-slate-800/80 gap-1.5 shrink-0">
-              <button
-                onClick={() => setLayoutMode('thumbnail')}
-                className={`p-2 rounded-lg transition-colors cursor-pointer ${
-                  layoutMode === 'thumbnail'
-                    ? 'bg-purple-655 text-white shadow shadow-purple-900/20'
-                    : 'text-slate-505 hover:text-slate-300'
-                }`}
-                title="Thumbnail Grid"
-              >
-                <LayoutGrid className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => setLayoutMode('detailed')}
-                className={`p-2 rounded-lg transition-colors cursor-pointer ${
-                  layoutMode === 'detailed'
-                    ? 'bg-purple-655 text-white shadow shadow-purple-900/20'
-                    : 'text-slate-550 hover:text-slate-300'
-                }`}
-                title="Detailed List"
-              >
-                <List className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => setLayoutMode('gallery')}
-                className={`p-2 rounded-lg transition-colors cursor-pointer ${
-                  layoutMode === 'gallery'
-                    ? 'bg-purple-655 text-white shadow shadow-purple-900/20'
-                    : 'text-slate-550 hover:text-slate-300'
-                }`}
-                title="Gallery Mode"
-              >
-                <ImageIcon className="w-5 h-5" />
-              </button>
-            </div>
+            <LayoutModeToggle
+              mode={layoutMode}
+              onChange={setLayoutMode}
+              storageKey="view_mode_bin_items"
+              variant="binDetails"
+            />
           )}
         </div>
 
@@ -564,13 +505,11 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
       {modalTypes?.includes('batch-manage') && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm pointer-events-auto">
           <div className="glass-panel w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-5 relative max-h-[90vh] flex flex-col justify-between">
-            <button
+            <BackButton
               onClick={() => onBack()}
-              className="absolute top-4 left-4 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+              className="absolute top-4 left-4"
               aria-label="Back"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
+            />
 
             <div className="space-y-2">
               <h2 className="text-base font-bold text-slate-200 flex items-center gap-2">
@@ -655,6 +594,12 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
                 )}
               </div>
 
+              {batchError && (
+                <MessageBanner type="error" className="mt-2">
+                  {batchError}
+                </MessageBanner>
+              )}
+
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -686,14 +631,10 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
           >
             {/* Header: Back only, pushed below the Android status bar */}
             <div className="flex items-center justify-between pt-[max(env(safe-area-inset-top),2rem)] px-4">
-              <button
-                type="button"
+              <BackButton
                 onClick={() => setShowQrView(false)}
-                className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
                 aria-label="Back"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
+              />
             </div>
 
             {/* QR + full text + print (print centered beneath text) */}
