@@ -21,7 +21,8 @@ export default function ItemForm({
   itemId,
   onBack,
   onNavigate,
-  refreshNonce
+  refreshNonce,
+  onRefresh
 }) {
   const isCreate = mode === 'create';
   const isEdit = mode === 'edit';
@@ -300,6 +301,7 @@ export default function ItemForm({
     try {
       if (isCreate) {
         await createItem(binId, name.trim(), description.trim(), tags, visibleText.trim(), imageFile);
+        onRefresh?.();
         setSuccessMsg('Item saved successfully!');
         setTimeout(() => {
           if (binId) {
@@ -322,6 +324,7 @@ export default function ItemForm({
         if (item.bin_id && binId && binId !== item.bin_id) {
           await batchManageItems(item.bin_id, 'reassign', [item.id], binId);
         }
+        onRefresh?.();
         onBack();
       }
     } catch (err) {

@@ -14,7 +14,7 @@ import useImageSrc from '../hooks/useImageSrc';
 import LocationPicker from '../components/LocationPicker';
 import MessageBanner from '../components/MessageBanner';
 
-export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, modalTypes, refreshNonce }) {
+export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, modalTypes, refreshNonce, onRefresh }) {
   const [bin, setBin] = useState(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -107,6 +107,23 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
     }
   }, [binId, refreshNonce]);
 
+  const binPollRef = useRef(batchWorking);
+  useEffect(() => { binPollRef.current = batchWorking; }, [batchWorking]);
+
+  useEffect(() => {
+    if (!binId) return;
+    const id = setInterval(() => {
+      if (binPollRef.current) return;
+      getBin(binId)
+        .then((data) => { setBin(data.bin); setItems(data.items); })
+        .catch((err) => console.error('[bin-poll] failed:', err));
+      getBins()
+        .then((binsList) => setAllLocations(Array.from(new Set(binsList.map(b => b.location).filter(Boolean)))))
+        .catch((err) => console.error('[bin-poll] locations failed:', err));
+    }, 5000);
+    return () => clearInterval(id);
+  }, [binId]);
+
   useEffect(() => {
     if (!showOverflowMenu) return;
     const handleClickOutside = (e) => {
@@ -183,6 +200,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
       }, editBinImageFile);
       setBin(updated);
       setEditingBin(false);
+      onRefresh?.();
       fetchBinDetails();
     } catch (err) {
       setSaveError(err.message || 'Failed to update bin');
@@ -195,6 +213,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
     setDeletingBin(true);
     try {
       await deleteBin(bin.id);
+      onRefresh?.();
       onNavigate('search');
     } catch (err) {
       if (err.blocked) {
@@ -217,6 +236,7 @@ export default function BinDetails({ binId, onNavigate, onPrintBin, onBack, moda
     setBatchError('');
     try {
       await batchManageItems(bin.id, batchAction, Array.from(selectedItems), batchTargetBin);
+      onRefresh?.();
       onBack();
       // Try deleting now empty bin
       try {

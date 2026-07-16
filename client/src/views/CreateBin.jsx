@@ -8,7 +8,7 @@ import { compressImage } from '../utils/imageCompression';
 import { createBin, getBins } from '../services/storage';
 import QRCode from 'qrcode';
 
-export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refreshNonce }) {
+export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refreshNonce, onRefresh }) {
   // Mode switcher when qrId is undefined: 'choice' | 'form'
   const [flowMode, setFlowMode] = useState(qrId ? 'form' : 'choice');
   const [generateMode, setGenerateMode] = useState(false); // True if system generating QR
@@ -133,6 +133,7 @@ export default function CreateBin({ qrId, onNavigate, onPrintBin, onBack, refres
       }
 
       const bin = await createBin(finalQrId, name.trim(), location.trim(), imageFile);
+      onRefresh?.();
 
       if (generateMode) {
         // If we generated the digital QR code, show the receipt view first

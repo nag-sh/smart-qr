@@ -311,15 +311,15 @@ function AppContent() {
 
       let view;
       switch (type) {
-        case 'scanner': view = <Scanner onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
-        case 'create-bin': view = <CreateBin qrId={params.qrId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} refreshNonce={refreshNonce} />; break;
-        case 'bin-details': view = <BinDetails binId={params.binId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
-        case 'multi-add': view = <MultiAddModal binId={params.binId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
-        case 'item-details': view = <ItemDetails itemId={params.itemId} autoAnalyze={params.autoAnalyze} pendingCreate={params.pendingCreate} binId={params.binId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
-        case 'edit-item': view = <ItemForm mode="edit" itemId={params.itemId} onBack={onBack} refreshNonce={refreshNonce} />; break;
-        case 'add-item': view = <ItemForm mode="create" binId={params.binId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} />; break;
+        case 'scanner': view = <Scanner onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} onRefresh={bumpRefresh} />; break;
+        case 'create-bin': view = <CreateBin qrId={params.qrId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} refreshNonce={refreshNonce} onRefresh={bumpRefresh} />; break;
+        case 'bin-details': view = <BinDetails binId={params.binId} onNavigate={onNavigate} onBack={onBack} onPrintBin={handlePrintBin} modalTypes={modalTypes} refreshNonce={refreshNonce} onRefresh={bumpRefresh} />; break;
+        case 'multi-add': view = <MultiAddModal binId={params.binId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} onRefresh={bumpRefresh} />; break;
+        case 'item-details': view = <ItemDetails itemId={params.itemId} autoAnalyze={params.autoAnalyze} pendingCreate={params.pendingCreate} binId={params.binId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} onRefresh={bumpRefresh} />; break;
+        case 'edit-item': view = <ItemForm mode="edit" itemId={params.itemId} onBack={onBack} refreshNonce={refreshNonce} onRefresh={bumpRefresh} />; break;
+        case 'add-item': view = <ItemForm mode="create" binId={params.binId} onNavigate={onNavigate} onBack={onBack} refreshNonce={refreshNonce} onRefresh={bumpRefresh} />; break;
         case 'settings': view = <Settings onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
-        case 'restore-points': view = <RestorePoints onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} refreshNonce={refreshNonce} />; break;
+        case 'restore-points': view = <RestorePoints onNavigate={onNavigate} onBack={onBack} modalTypes={modalTypes} refreshNonce={refreshNonce} onRefresh={bumpRefresh} />; break;
         case 'print-randomized': view = <PrintRandomized onNavigate={onNavigate} onBack={onBack} onPrintRandom={handlePrintRandom} />; break;
         default: return null;
       }

@@ -17,6 +17,7 @@ export default function ItemDetails({
   itemId,
   onBack,
   refreshNonce,
+  onRefresh,
   autoAnalyze: autoAnalyzeParam = false,
   pendingCreate: pendingCreateParam = false,
   binId
@@ -143,6 +144,36 @@ export default function ItemDetails({
     fetchItem();
   }, [pendingCreate, resolvedItemId, refreshNonce]);
 
+  const itemPollBlockRef = useRef(false);
+  useEffect(() => {
+    itemPollBlockRef.current = pendingCreate && !resolvedItemId;
+  }, [pendingCreate, resolvedItemId]);
+
+  useEffect(() => {
+    if (pendingCreate) return;
+    const id = setInterval(() => {
+      if (itemPollBlockRef.current) return;
+      (async () => {
+        try {
+          const items = await searchItems('');
+          const found = items.find((i) => i.id === resolvedItemId);
+          if (!found) return;
+          setItem(found);
+          if (found.bin_id) {
+            try {
+              const binData = await getBin(found.bin_id);
+              setBin(binData.bin);
+            } catch {
+            }
+          }
+        } catch (err) {
+          console.error('[item-poll] failed:', err);
+        }
+      })();
+    }, 5000);
+    return () => clearInterval(id);
+  }, [pendingCreate, resolvedItemId]);
+
   useEffect(() => {
     if (!showOverflowMenu) return;
     const handleClickOutside = (e) => {
@@ -245,6 +276,7 @@ export default function ItemDetails({
     try {
       const updated = await updateItem(item.id, fields);
       setItem(updated);
+      onRefresh?.();
       setAiReviewOpen(false);
     } catch (err) {
       console.error(err);
@@ -275,6 +307,7 @@ export default function ItemDetails({
       if ((metadata.visible_text || '').trim()) fields.visible_text = metadata.visible_text.trim();
       const updated = await updateItem(item.id, fields);
       setItem(updated);
+      onRefresh?.();
     } catch (err) {
       console.error(err);
       setAutoError(err.message || 'AI analysis failed.');

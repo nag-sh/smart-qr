@@ -181,6 +181,23 @@ export default function Search({ onNavigate, onBack, modalTypes }) {
     };
   }, []);
 
+  const POLL_INTERVAL_MS = 5000;
+  const batchWorkingRef = useRef(batchWorking);
+  useEffect(() => { batchWorkingRef.current = batchWorking; }, [batchWorking]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (batchWorkingRef.current) return;
+      getBins()
+        .then(setBins)
+        .catch((err) => console.error('[search-poll] bins failed:', err));
+      searchItems(query)
+        .then(setItems)
+        .catch((err) => console.error('[search-poll] items failed:', err));
+    }, POLL_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [query]);
+
   // Reset pagination when filter criteria or layout change
   useEffect(() => {
     setVisibleCount(12);

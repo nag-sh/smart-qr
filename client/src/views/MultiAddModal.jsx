@@ -32,7 +32,7 @@ function LazyThumbnail({ src, alt, className }) {
   );
 }
 
-export default function MultiAddModal({ binId, onNavigate, onBack, refreshNonce }) {
+export default function MultiAddModal({ binId, onNavigate, onBack, refreshNonce, onRefresh }) {
   const [roll, setRoll] = useState([]);
   const [apiKey, setApiKey] = useState('');
   const rollRef = useRef(roll);
@@ -285,19 +285,25 @@ export default function MultiAddModal({ binId, onNavigate, onBack, refreshNonce 
 
   const hasRoll = roll.length > 0;
 
+  const handleBack = () => {
+    onRefresh?.();
+    onBack();
+  };
+
   if (!effectiveBinId) {
     return (
       <div className="w-full h-full flex flex-col bg-slate-950 text-slate-100">
         <div className="p-4 flex items-center border-b border-slate-800/50 shrink-0">
-          <button
-            type="button"
-            onClick={onBack}
-            className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
-            aria-label="Go back"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <h1 className="ml-3 font-bold text-sm text-slate-200">Multi-Add</h1>
+        <button
+          type="button"
+          onClick={handleBack}
+          className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+          aria-label="Go back"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+
+        <h1 className="ml-3 font-bold text-sm text-slate-200">Multi-Add</h1>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center p-6">
           <Camera className="w-10 h-10 text-slate-600 mb-4" />
