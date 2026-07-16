@@ -412,44 +412,48 @@ export default function ItemDetails({
       )}
 
 
-      {/* Item hero card */}
-      <div className="glass-panel rounded-3xl overflow-hidden shadow-2xl relative flex flex-col md:flex-row">
-        {/* Left side/top: Photo */}
-        <div className="w-full md:w-1/3 aspect-video md:aspect-auto md:min-h-[160px] bg-slate-900 flex items-center justify-center relative border-b md:border-b-0 md:border-r border-slate-800/60">
-          {itemImageSrc ? (
-            <button onClick={() => setShowFullImage(true)} className="w-full h-full block cursor-pointer">
-              <img src={itemImageSrc} alt={item.name || 'Untitled Item'} className="w-full h-full object-cover" />
-            </button>
-          ) : (
+      {/* Item hero card — small image floats left, text wraps around it */}
+      <div className="glass-panel rounded-3xl p-5 shadow-2xl relative flow-root">
+        {itemImageSrc ? (
+          <button
+            onClick={() => setShowFullImage(true)}
+            className="float-left mr-4 mb-2 block cursor-pointer rounded-2xl overflow-hidden bg-slate-900 max-h-[25vh] max-w-[40%]"
+            title="Tap to view full image"
+          >
+            <img
+              src={itemImageSrc}
+              alt={item.name || 'Untitled Item'}
+              className="block h-full w-auto max-h-[25vh] object-cover"
+            />
+          </button>
+        ) : (
+          <div className="float-left mr-4 mb-2 flex items-center justify-center rounded-2xl bg-slate-900 max-h-[25vh] max-w-[40%] aspect-square">
             <Package className="w-12 h-12 text-slate-700 stroke-1" />
-          )}
-        </div>
-
-        {/* Right side/details */}
-        <div className="p-6 flex-1 flex flex-col justify-between relative">
-          <div className="space-y-3">
-            <h1 className="text-xl font-bold tracking-tight text-slate-100 flex items-center gap-2">
-              {item.name || 'Untitled Item'}
-            </h1>
-
-            {/* Clickable bin + location pill */}
-            <button
-              onClick={() => item.bin_id && onNavigate('bin-details', { binId: item.bin_id })}
-              disabled={!item.bin_id}
-              className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-all cursor-pointer ${
-                item.bin_id
-                  ? 'bg-pink-500/10 border-pink-500/20 text-pink-300 hover:bg-pink-500/20 hover:border-pink-500/40'
-                  : 'bg-slate-800/60 border-slate-800 text-slate-500 cursor-not-allowed'
-              }`}
-              title={bin ? `${bin.name} — ${bin.location}` : 'Bin location'}
-            >
-              <MapPin className="w-4 h-4 text-pink-400 shrink-0" />
-              <span>{bin ? `${bin.name} • ${bin.location}` : item.bin_name || 'Unknown bin'}</span>
-            </button>
           </div>
+        )}
 
-          <div className="mt-4 md:mt-0 pt-4 border-t border-slate-800/40 flex items-center justify-between text-[11px] text-slate-400">
-            <span>Created {new Date(item.created_at).toLocaleDateString()}</span>
+        <div className="space-y-3">
+          <h1 className="text-xl font-bold tracking-tight text-slate-100 break-words">
+            {item.name || 'Untitled Item'}
+          </h1>
+
+          {/* Clickable bin + location pill */}
+          <button
+            onClick={() => item.bin_id && onNavigate('bin-details', { binId: item.bin_id })}
+            disabled={!item.bin_id}
+            className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-all cursor-pointer ${
+              item.bin_id
+                ? 'bg-pink-500/10 border-pink-500/20 text-pink-300 hover:bg-pink-500/20 hover:border-pink-500/40'
+                : 'bg-slate-800/60 border-slate-800 text-slate-500 cursor-not-allowed'
+            }`}
+            title={bin ? `${bin.name} — ${bin.location}` : 'Bin location'}
+          >
+            <MapPin className="w-4 h-4 text-pink-400 shrink-0" />
+            <span>{bin ? `${bin.name} • ${bin.location}` : item.bin_name || 'Unknown bin'}</span>
+          </button>
+
+          <div className="pt-2 text-[11px] text-slate-400">
+            Created {new Date(item.created_at).toLocaleDateString()}
           </div>
         </div>
       </div>
