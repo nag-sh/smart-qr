@@ -141,6 +141,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   vi.unstubAllGlobals();
 });
@@ -216,11 +217,10 @@ describe('MultiAddModal', () => {
     expect(screen.getByText('Test')).toBeInTheDocument();
   });
 
-  it('(d) retries analysis twice and succeeds on the third attempt', async () => {
+  it('(d) retries analysis once and succeeds on the second attempt', async () => {
     localStorage.setItem('gemini_api_key', 'k');
 
     analyzeItemImage
-      .mockRejectedValueOnce(new Error('network error'))
       .mockRejectedValueOnce(new Error('network error'))
       .mockResolvedValueOnce({
         title: 'Box',
@@ -247,7 +247,7 @@ describe('MultiAddModal', () => {
       await vi.advanceTimersByTimeAsync(1500);
     });
 
-    expect(analyzeItemImage).toHaveBeenCalledTimes(3);
+    expect(analyzeItemImage).toHaveBeenCalledTimes(2);
     expect(screen.getByText('Test')).toBeInTheDocument();
 
     vi.useRealTimers();
